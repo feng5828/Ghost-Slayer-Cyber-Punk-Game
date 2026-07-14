@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>草原大崩坏 Grassland Mayhem</title>
+<style>
+@font-face {
+  font-family: 'FusionPixel';
+  src: url('/fonts/FusionPixel-12px-Prop-zh_hans.ttf') format('truetype');
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a1a; }
+body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; user-select: none; }
+#app { position: fixed; inset: 0; }
+#app canvas { display: block; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+#timer {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  font-size: 34px; letter-spacing: 2px; text-shadow: 3px 3px 0 #0a0a1a;
+}
+#timer.danger { color: #ff5040; }
+#scoreboard {
+  position: absolute; top: 14px; right: 16px; text-align: right;
+  font-size: 17px; line-height: 1.6; text-shadow: 2px 2px 0 #0a0a1a;
+}
+#scoreboard .row.me { color: #ffe08a; }
+#hpbar {
+  position: absolute; bottom: 18px; left: 20px;
+  font-size: 20px; text-shadow: 2px 2px 0 #0a0a1a;
+}
+#hpbar .label { font-size: 14px; color: #9aa; }
+#hint {
+  position: absolute; bottom: 18px; right: 20px; text-align: right;
+  font-size: 13px; color: #b8c0c8; line-height: 1.7; text-shadow: 2px 2px 0 #0a0a1a;
+}
+#banner {
+  position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+  font-size: 26px; color: #ff6a5a; text-shadow: 3px 3px 0 #0a0a1a;
+  opacity: 0; transition: opacity .4s; white-space: nowrap;
+}
+#banner.show { opacity: 1; }
+#popups { position: absolute; inset: 0; overflow: hidden; }
+.popup {
+  position: absolute; font-size: 16px; white-space: nowrap;
+  text-shadow: 2px 2px 0 #0a0a1a; animation: floatUp 1.1s ease-out forwards;
+}
+.popup.c1 { color: #ffd67a; font-size: 18px; }
+.popup.c2 { color: #ffab4a; font-size: 21px; }
+.popup.c3 { color: #ff7a3a; font-size: 24px; }
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, 10px); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70px); }
+}
+#charmring {
+  position: absolute; width: 46px; height: 46px; border-radius: 50%;
+  border: 3px solid #7ac8ff; display: none;
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- 菜单 / 结算 ---------- */
+.screen {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 26px;
+  background: radial-gradient(ellipse at 50% 30%, #1c2333 0%, #0a0a1a 75%);
+  z-index: 10;
+}
+.screen h1 { font-size: 46px; letter-spacing: 6px; text-shadow: 4px 4px 0 #3a0d0d; }
+.screen h2 { font-size: 20px; color: #9aa4b0; font-weight: normal; }
+.cards { display: flex; gap: 18px; }
+.card {
+  width: 200px; padding: 18px 16px; border: 2px solid #555; background: #14141f;
+  cursor: pointer; text-align: center; transition: all .12s;
+  box-shadow: 4px 4px 0 rgba(0,0,0,.5);
+}
+.card:hover { border-color: #aaa; transform: translateY(-3px); }
+.card.sel { border-color: #ffd67a; background: #241f14; }
+.card .cname { font-size: 22px; margin-bottom: 8px; }
+.card .cdesc { font-size: 13px; color: #98a0aa; line-height: 1.7; }
+.modes { display: flex; gap: 18px; }
+.mode {
+  padding: 12px 26px; border: 2px solid #555; background: #14141f;
+  font-size: 18px; cursor: pointer; box-shadow: 4px 4px 0 rgba(0,0,0,.5);
+}
+.mode:hover { border-color: #aaa; }
+.mode.sel { border-color: #ffd67a; background: #241f14; }
+.bigbtn {
+  padding: 14px 60px; font-size: 24px; font-family: inherit;
+  background: #7a1f16; color: #ffe; border: 2px solid #c05040;
+  cursor: pointer; box-shadow: 5px 5px 0 rgba(0,0,0,.6); letter-spacing: 4px;
+}
+.bigbtn:hover:not(:disabled) { background: #9a2a1e; }
+.bigbtn:disabled { opacity: .35; cursor: not-allowed; }
+#rankings { font-size: 22px; line-height: 2.2; text-align: center; }
+#rankings .winner { color: #ffd67a; font-size: 28px; }
+#endsub { color: #98a0aa; font-size: 15px; }
+.btnrow { display: flex; gap: 16px; }
+.bigbtn.gray { background: #26262f; border-color: #555; }
+.bigbtn.gray:hover { background: #34343f; }
+#end { display: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div id="timer">3:00</div>
+  <div id="scoreboard"></div>
+  <div id="hpbar"><span class="label"></span><span class="val"></span></div>
+  <div id="hint"></div>
+  <div id="banner"></div>
+  <div id="popups"></div>
+  <div id="charmring"></div>
+</div>
+
+<div id="menu" class="screen">
+  <h1>草原大崩坏</h1>
+  <h2>红天空降临的三分钟 —— 拆光一切,或者互相撕碎</h2>
+  <div class="modes" id="modes"></div>
+  <div class="cards" id="cards"></div>
+  <button class="bigbtn" id="startbtn" disabled>开 战</button>
+  <div id="menuhint" style="color:#788; font-size:13px">选择模式和生物 · WASD 移动 · 鼠标瞄准 · 左键主技能 · 右键副技能</div>
+</div>
+
+<div id="end" class="screen">
+  <h1 id="endtitle">比赛结束</h1>
+  <div id="rankings"></div>
+  <div id="endsub"></div>
+  <div class="btnrow">
+    <button class="bigbtn" id="againbtn">再来一局</button>
+    <button class="bigbtn gray" id="menubtn">回到主菜单</button>
+  </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
