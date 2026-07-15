@@ -16,16 +16,16 @@ function makeGroundTexture() {
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
   const g = cv.getContext('2d');
-  g.fillStyle = '#b6ae9a';
+  g.fillStyle = '#d8cbae';
   g.fillRect(0, 0, S, S);
 
-  // 石板(随机暖灰,错缝排列)—— 亮色石板,黄昏下依然透亮
+  // 石板(米色系,错缝排列)
   const tile = 128;
   let row = 0;
   for (let y = 0; y < S; y += tile) {
     const off = (row++ % 2) * (tile / 2);
     for (let x = -tile; x < S + tile; x += tile) {
-      g.fillStyle = pick(['#c0b8a4', '#b4ac98', '#c8c0ac', '#aea694', '#bcb4a0']);
+      g.fillStyle = pick(['#e0d3b6', '#d4c7aa', '#e6dabf', '#cec1a4', '#dccfb2']);
       g.fillRect(x + off + 3, y + 3, tile - 6, tile - 6);
     }
   }
@@ -56,10 +56,10 @@ function makeRoadTexture() {
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
-  g.fillStyle = '#a49c8a';
+  g.fillStyle = '#cabd9e';
   g.fillRect(0, 0, W, H);
   for (let y = 0; y < H; y += 128) {
-    g.fillStyle = pick(['#aca490', '#a09884', '#b2aa96']);
+    g.fillStyle = pick(['#d2c5a8', '#c6b99c', '#d8ccb0']);
     g.fillRect(4, y + 4, W - 8, 120);
   }
   for (let i = 0; i < 2500; i++) {
