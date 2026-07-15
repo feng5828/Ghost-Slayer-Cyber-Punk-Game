@@ -39,7 +39,7 @@ export const GradeShader = {
     shadowTint: { value: new THREE.Vector3(0.88, 0.78, 1.08) }, // 冷紫(明亮版)
     lightTint: { value: new THREE.Vector3(1.14, 1.0, 0.86) },   // 暖橙
     saturation: { value: 1.18 },
-    exposure: { value: 1.08 },
+    exposure: { value: 1.12 },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -74,7 +74,8 @@ export const OutlineShader = {
     tDiffuse: { value: null },
     resolution: { value: new THREE.Vector2(1, 1) },
     threshold: { value: 0.16 },  // 低于此梯度不描(放过地面纹理噪点)
-    strength: { value: 0.8 },
+    strength: { value: 0.85 },
+    thickness: { value: 1.8 },   // 采样步长(像素)≈ 线宽
     lineColor: { value: new THREE.Vector3(0.16, 0.09, 0.18) }, // 暗紫墨线,配黄昏
   },
   vertexShader: /* glsl */`
@@ -88,6 +89,7 @@ export const OutlineShader = {
     uniform vec2 resolution;
     uniform float threshold;
     uniform float strength;
+    uniform float thickness;
     uniform vec3 lineColor;
     varying vec2 vUv;
     float lum(vec2 uv) {
@@ -96,7 +98,7 @@ export const OutlineShader = {
     }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
-      vec2 px = 1.0 / resolution;
+      vec2 px = thickness / resolution;
       // Sobel
       float tl = lum(vUv + px * vec2(-1.0,  1.0));
       float tc = lum(vUv + px * vec2( 0.0,  1.0));
