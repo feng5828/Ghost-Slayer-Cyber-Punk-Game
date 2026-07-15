@@ -32,6 +32,26 @@ export function TOON(opts = {}) {
   return new THREE.MeshToonMaterial(params);
 }
 
+// 地面专用 toon 特例:保留色阶明暗,但把色相锚回固定的"米-红中间调",
+// 削弱橙色阳光/紫色环境光对地面的染色(注入点在 fog 之前,远处雾色不受影响)
+export function TOON_GROUND(opts = {}, baseTone = 0xe4c0a2, hold = 0.55) {
+  const m = TOON(opts);
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uGroundBase = { value: new THREE.Color(baseTone) };
+    shader.uniforms.uGroundHold = { value: hold };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {',
+        'uniform vec3 uGroundBase;\nuniform float uGroundHold;\nvoid main() {')
+      .replace('#include <fog_fragment>', `{
+        float lumG = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+        vec3 anchored = uGroundBase * (lumG * 1.25);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, anchored, uGroundHold);
+      }
+      #include <fog_fragment>`);
+  };
+  return m;
+}
+
 // 全屏分调色:按亮度把画面劈成冷紫暗部和暖橙亮部,再补一点饱和度
 export const GradeShader = {
   uniforms: {

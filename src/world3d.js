@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { rand, pick } from './util.js';
-import { TOON, GradeShader, OutlineShader } from './toon.js';
+import { TOON, TOON_GROUND, GradeShader, OutlineShader } from './toon.js';
 
 // ============================================================================
 // 新赛博中式 · 黄昏老街:石板路贴图 + 暖阳低角度打光 + 霓虹泛光(Bloom)
@@ -109,7 +109,7 @@ export function createWorld3D() {
   groundTex.repeat.set(13, 13);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(340, 340),
-    TOON({ map: groundTex })
+    TOON_GROUND({ map: groundTex }, 0xe4c0a2, 0.55)
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -120,7 +120,7 @@ export function createWorld3D() {
   roadTex.repeat.set(1, 20);
   const road = new THREE.Mesh(
     new THREE.PlaneGeometry(9, 340),
-    TOON({ map: roadTex })
+    TOON_GROUND({ map: roadTex }, 0xd8b294, 0.55)
   );
   road.rotation.x = -Math.PI / 2;
   road.position.y = 0.02;
