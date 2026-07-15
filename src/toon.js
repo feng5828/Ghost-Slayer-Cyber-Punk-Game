@@ -9,9 +9,10 @@ import * as THREE from 'three';
 let _ramp = null;
 
 // 硬边三阶色阶:阴影 / 中间调 / 受光(NearestFilter 保证不插值 = 硬分界)
+// 阴影档抬高到 128:黄昏依然明亮,阴影只是"变色"而不是"变黑"
 export function toonRamp() {
   if (_ramp) return _ramp;
-  const data = new Uint8Array([90, 90, 90, 255, 165, 165, 165, 255, 255, 255, 255, 255]);
+  const data = new Uint8Array([128, 128, 128, 255, 200, 200, 200, 255, 255, 255, 255, 255]);
   _ramp = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat);
   _ramp.minFilter = THREE.NearestFilter;
   _ramp.magFilter = THREE.NearestFilter;
@@ -35,9 +36,10 @@ export function TOON(opts = {}) {
 export const GradeShader = {
   uniforms: {
     tDiffuse: { value: null },
-    shadowTint: { value: new THREE.Vector3(0.68, 0.56, 1.05) }, // 冷紫
-    lightTint: { value: new THREE.Vector3(1.14, 0.97, 0.80) },  // 暖橙
-    saturation: { value: 1.22 },
+    shadowTint: { value: new THREE.Vector3(0.88, 0.78, 1.08) }, // 冷紫(明亮版)
+    lightTint: { value: new THREE.Vector3(1.14, 1.0, 0.86) },   // 暖橙
+    saturation: { value: 1.18 },
+    exposure: { value: 1.08 },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -50,16 +52,65 @@ export const GradeShader = {
     uniform vec3 shadowTint;
     uniform vec3 lightTint;
     uniform float saturation;
+    uniform float exposure;
     varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
       float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
       // 暗部→冷紫,亮部→暖橙(分界柔一点避免色带撕裂)
       vec3 tint = mix(shadowTint, lightTint, smoothstep(0.12, 0.72, l));
-      c.rgb *= tint;
+      c.rgb *= tint * exposure;
       // 饱和度提升,卡通感
       float g = dot(c.rgb, vec3(0.3333));
       c.rgb = mix(vec3(g), c.rgb, saturation);
+      gl_FragColor = c;
+    }`,
+};
+
+// 轮廓墨线:对 toon 平涂色块做 Sobel 边缘检测,压上深色描边
+// (toon 材质把表面拍平成色块后,颜色梯度基本就等于几何轮廓)
+export const OutlineShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    resolution: { value: new THREE.Vector2(1, 1) },
+    threshold: { value: 0.16 },  // 低于此梯度不描(放过地面纹理噪点)
+    strength: { value: 0.8 },
+    lineColor: { value: new THREE.Vector3(0.16, 0.09, 0.18) }, // 暗紫墨线,配黄昏
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform vec2 resolution;
+    uniform float threshold;
+    uniform float strength;
+    uniform vec3 lineColor;
+    varying vec2 vUv;
+    float lum(vec2 uv) {
+      vec3 c = texture2D(tDiffuse, uv).rgb;
+      return dot(c, vec3(0.299, 0.587, 0.114));
+    }
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec2 px = 1.0 / resolution;
+      // Sobel
+      float tl = lum(vUv + px * vec2(-1.0,  1.0));
+      float tc = lum(vUv + px * vec2( 0.0,  1.0));
+      float tr = lum(vUv + px * vec2( 1.0,  1.0));
+      float ml = lum(vUv + px * vec2(-1.0,  0.0));
+      float mr = lum(vUv + px * vec2( 1.0,  0.0));
+      float bl = lum(vUv + px * vec2(-1.0, -1.0));
+      float bc = lum(vUv + px * vec2( 0.0, -1.0));
+      float br = lum(vUv + px * vec2( 1.0, -1.0));
+      float gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br;
+      float gy = -tl - 2.0 * tc - tr + bl + 2.0 * bc + br;
+      float edge = length(vec2(gx, gy));
+      float k = smoothstep(threshold, threshold * 2.2, edge) * strength;
+      c.rgb = mix(c.rgb, lineColor, k);
       gl_FragColor = c;
     }`,
 };

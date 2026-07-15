@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { rand, pick } from './util.js';
-import { TOON, GradeShader } from './toon.js';
+import { TOON, GradeShader, OutlineShader } from './toon.js';
 
 // ============================================================================
 // 新赛博中式 · 黄昏老街:石板路贴图 + 暖阳低角度打光 + 霓虹泛光(Bloom)
@@ -85,17 +85,17 @@ export function createWorld3D() {
   document.getElementById('app').appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xe8895e);
-  scene.fog = new THREE.Fog(0xe8895e, 70, 260);
+  scene.background = new THREE.Color(0xf09a6a);
+  scene.fog = new THREE.Fog(0xf09a6a, 70, 260);
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 700);
   camera.position.set(0, 17, 11);
   camera.lookAt(0, 0, 0);
 
-  // 夸张黄昏的光影分色:阳光浓橙 / 环境光冷紫 → 受光面吃橙、阴影面吃紫
-  const hemi = new THREE.HemisphereLight(0x8a6acc, 0x4a3a72, 0.95);
+  // 夸张黄昏的光影分色(明亮版):阳光浓橙 / 环境光亮紫 → 受光面吃橙、阴影面吃紫但依然透亮
+  const hemi = new THREE.HemisphereLight(0xa88ad8, 0x6a5a94, 1.05);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xff9a3a, 1.7);
+  const sun = new THREE.DirectionalLight(0xffa64e, 1.85);
   sun.position.set(95, 42, 70);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -130,6 +130,10 @@ export function createWorld3D() {
   // 霓虹泛光
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
+  // 轮廓墨线(在泛光前,避免给辉光描边)
+  const outline = new ShaderPass(OutlineShader);
+  outline.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+  composer.addPass(outline);
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
     0.42,  // strength:白天场景收敛些,霓虹微微渗光即可
@@ -145,6 +149,7 @@ export function createWorld3D() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
+    outline.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
   });
 
   return { renderer, scene, camera, sun, hemi, composer };
