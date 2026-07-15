@@ -112,8 +112,8 @@ export function createWorld3D() {
     new THREE.PlaneGeometry(340, 340),
     TOON_GROUND({
       map: groundTex,
-      emissive: new THREE.Color(0xff7a30), emissiveIntensity: 0.18,
-    }, 0xffa056, 0.62)
+      emissive: new THREE.Color(0xff7a30), emissiveIntensity: 0.42,
+    }, 0xffb478, 0.62)
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -126,8 +126,8 @@ export function createWorld3D() {
     new THREE.PlaneGeometry(9, 340),
     TOON_GROUND({
       map: roadTex,
-      emissive: new THREE.Color(0xf06a28), emissiveIntensity: 0.14,
-    }, 0xf29048, 0.62)
+      emissive: new THREE.Color(0xf06a28), emissiveIntensity: 0.34,
+    }, 0xf8a468, 0.62)
   );
   road.rotation.x = -Math.PI / 2;
   road.position.y = 0.02;

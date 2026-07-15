@@ -44,7 +44,7 @@ export function TOON_GROUND(opts = {}, baseTone = 0xe4c0a2, hold = 0.55) {
         'uniform vec3 uGroundBase;\nuniform float uGroundHold;\nvoid main() {')
       .replace('#include <fog_fragment>', `{
         float lumG = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
-        vec3 anchored = uGroundBase * (lumG * 1.25);
+        vec3 anchored = uGroundBase * (lumG * 1.4);
         gl_FragColor.rgb = mix(gl_FragColor.rgb, anchored, uGroundHold);
       }
       #include <fog_fragment>`);
