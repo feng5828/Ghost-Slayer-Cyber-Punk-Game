@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Creature } from './base.js';
+import { TOON } from '../toon.js';
 import { explode, destroyProp } from '../damage.js';
 import { propPos } from '../props.js';
 import { damp } from '../util.js';
@@ -26,19 +27,19 @@ export class Guardian extends Creature {
     this.hoverY = 1.8;
 
     // 造型:惨白纸人 —— 扁平纸身 + 墨点眼 + 红腮 + 头顶红符
-    const paperMat = new THREE.MeshStandardMaterial({ color: 0xefe8dc, roughness: 0.95 });
+    const paperMat = TOON({ color: 0xefe8dc, roughness: 0.95 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), paperMat);
     body.scale.z = 0.35; // 压扁成纸片
     body.castShadow = true;
     this.bodyMesh = body;
-    const inkMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.8 });
+    const inkMat = TOON({ color: 0x141414, roughness: 0.8 });
     for (const ex of [-0.2, 0.2]) {
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), inkMat);
       eye.position.set(ex, 0.12, -0.52);
       eye.scale.z = 0.4;
       body.add(eye);
     }
-    const cheekMat = new THREE.MeshStandardMaterial({ color: 0xc23434, roughness: 0.9 });
+    const cheekMat = TOON({ color: 0xc23434, roughness: 0.9 });
     for (const ex of [-0.32, 0.32]) {
       const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), cheekMat);
       cheek.position.set(ex, -0.08, -0.5);
@@ -48,7 +49,7 @@ export class Guardian extends Creature {
     // 头顶红符(替代原作的天线星星)
     const star = new THREE.Mesh(
       new THREE.BoxGeometry(0.22, 0.5, 0.03),
-      new THREE.MeshStandardMaterial({ color: 0xc22a1a, emissive: 0x661008, roughness: 0.6 })
+      TOON({ color: 0xc22a1a, emissive: 0x661008, roughness: 0.6 })
     );
     star.position.y = 1.0;
     this.star = star;

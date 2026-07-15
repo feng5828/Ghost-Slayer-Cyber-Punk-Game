@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { rand, damp } from './util.js';
+import { TOON } from './toon.js';
 import { spawnDebris } from './props.js';
 
 // ============================================================================
@@ -21,14 +22,14 @@ export class Critters {
 
     for (let i = 0; i < COUNT; i++) {
       const g = new THREE.Group();
-      const matN = new THREE.MeshStandardMaterial({
+      const matN = TOON({
         color: suitColors[i % suitColors.length], roughness: 0.7, metalness: 0.2,
       });
       const body = new THREE.Mesh(geoBody, matN);
       body.position.y = 0.35;
       const head = new THREE.Mesh(geoHead, matN);
       head.position.y = 0.75;
-      const visor = new THREE.Mesh(geoVisor, new THREE.MeshStandardMaterial({
+      const visor = new THREE.Mesh(geoVisor, TOON({
         color: 0x0a0a12, emissive: visorColors[i % visorColors.length], emissiveIntensity: 1.0,
       }));
       visor.position.set(0, 0.76, -0.14);

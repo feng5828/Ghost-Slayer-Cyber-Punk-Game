@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Creature } from './base.js';
+import { TOON } from '../toon.js';
 import { meleeHit, hitCreaturesAt } from '../damage.js';
 import { consumeDebrisNear, spawnDebris } from '../props.js';
 import { rand, damp, clamp } from '../util.js';
@@ -22,7 +23,7 @@ export class Spheres extends Creature {
     this.mode = 'cloud';
     this.drillDir = new THREE.Vector3(0, 0, -1);
 
-    this.mat = new THREE.MeshStandardMaterial({
+    this.mat = TOON({
       color: 0x1a3a30, metalness: 0.0, roughness: 0.6,
       emissive: 0x3fbf92, emissiveIntensity: 0.9,
     });

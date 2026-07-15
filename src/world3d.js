@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { rand, pick } from './util.js';
+import { TOON, GradeShader } from './toon.js';
 
 // ============================================================================
 // 新赛博中式 · 黄昏老街:石板路贴图 + 暖阳低角度打光 + 霓虹泛光(Bloom)
@@ -83,17 +85,17 @@ export function createWorld3D() {
   document.getElementById('app').appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xd9ae87);
-  scene.fog = new THREE.Fog(0xd9ae87, 70, 260);
+  scene.background = new THREE.Color(0xe8895e);
+  scene.fog = new THREE.Fog(0xe8895e, 70, 260);
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 700);
   camera.position.set(0, 17, 11);
   camera.lookAt(0, 0, 0);
 
-  // 黄昏:暖色天光 + 低角度金色斜阳(长影子)
-  const hemi = new THREE.HemisphereLight(0xffd9ae, 0x7a685a, 0.85);
+  // 夸张黄昏的光影分色:阳光浓橙 / 环境光冷紫 → 受光面吃橙、阴影面吃紫
+  const hemi = new THREE.HemisphereLight(0x8a6acc, 0x4a3a72, 0.95);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffb26a, 1.35);
+  const sun = new THREE.DirectionalLight(0xff9a3a, 1.7);
   sun.position.set(95, 42, 70);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -107,7 +109,7 @@ export function createWorld3D() {
   groundTex.repeat.set(13, 13);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(340, 340),
-    new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95, metalness: 0.0 })
+    TOON({ map: groundTex })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -118,7 +120,7 @@ export function createWorld3D() {
   roadTex.repeat.set(1, 20);
   const road = new THREE.Mesh(
     new THREE.PlaneGeometry(9, 340),
-    new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.95, metalness: 0.0 })
+    TOON({ map: roadTex })
   );
   road.rotation.x = -Math.PI / 2;
   road.position.y = 0.02;
@@ -135,6 +137,8 @@ export function createWorld3D() {
     0.82   // threshold:只有高亮 emissive(霓虹/灯笼)起辉,暖阳画面不糊
   );
   composer.addPass(bloom);
+  // 分调色:暗部推冷紫、亮部推暖橙 —— 夸张黄昏的最后一层
+  composer.addPass(new ShaderPass(GradeShader));
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;

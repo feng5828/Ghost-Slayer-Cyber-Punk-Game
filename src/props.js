@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { rand, pick } from './util.js';
 import { damageProp, hitCreaturesAt } from './damage.js';
+import { TOON } from './toon.js';
 
 // ============================================================================
 // 道具定义:涌现的基础 —— 每个道具只有几个共享属性
@@ -29,15 +30,16 @@ let _id = 0;
 const geoCache = {};
 const matCache = {};
 
+// 三渲二:全部道具走卡通材质(硬边色阶)
 function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
-  if (!matCache[key]) matCache[key] = new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...opts });
+  if (!matCache[key]) matCache[key] = TOON({ color, ...opts });
   return matCache[key];
 }
 
 // 发光材质:泛光管线会让它起辉
 function neonMat(color, intensity = 1.3) {
-  return mat(0x0a0a12, { emissive: color, emissiveIntensity: intensity, roughness: 0.4 });
+  return mat(0x0a0a12, { emissive: color, emissiveIntensity: intensity });
 }
 
 // ---------------------------------------------------------------------------

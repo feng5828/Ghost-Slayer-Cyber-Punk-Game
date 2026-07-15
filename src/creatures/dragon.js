@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Creature } from './base.js';
+import { TOON } from '../toon.js';
 import { meleeHit } from '../damage.js';
 import { spawnDebris } from '../props.js';
 import { clamp, damp } from '../util.js';
@@ -29,9 +30,9 @@ export class Dragon extends Creature {
     this.heading = new THREE.Vector3(0, 0, -1);
     this.prevHead = this.pos.clone();
 
-    this.headMat = new THREE.MeshStandardMaterial({ color: 0x992010, roughness: 0.45 });
-    this.bodyMat = new THREE.MeshStandardMaterial({ color: 0x992010, roughness: 0.5 });
-    this.hornMat = new THREE.MeshStandardMaterial({ color: 0xe07310, roughness: 0.4 });
+    this.headMat = TOON({ color: 0x992010, roughness: 0.45 });
+    this.bodyMat = TOON({ color: 0x992010, roughness: 0.5 });
+    this.hornMat = TOON({ color: 0xe07310, roughness: 0.4 });
     this.sphereGeo = new THREE.SphereGeometry(1, 14, 10);
     this.coneGeo = new THREE.ConeGeometry(0.15, 0.6, 8);
 

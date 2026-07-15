@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Creature } from './base.js';
+import { TOON } from '../toon.js';
 import { meleeHit, hitCreaturesAt, addFlash, nearbyProps, damageProp } from '../damage.js';
 import { ignite } from '../fire.js';
 import { damp, clamp, lerp } from '../util.js';
@@ -45,18 +46,18 @@ export class Hunter extends Creature {
     this.facing = 0;
 
     // 造型:深色义体 + 青色面甲光条 + 背后符印发光 + 悬浮肩灯
-    const suitMat = new THREE.MeshStandardMaterial({ color: 0x161a28, metalness: 0.55, roughness: 0.4 });
+    const suitMat = TOON({ color: 0x161a28, metalness: 0.55, roughness: 0.4 });
     const bodyM = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.45, 1.4, 10), suitMat);
     bodyM.position.y = 0.95; bodyM.castShadow = true;
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), suitMat);
     head.position.y = 1.95;
-    this.visorMat = new THREE.MeshStandardMaterial({
+    this.visorMat = TOON({
       color: 0x061014, emissive: 0x18e0c8, emissiveIntensity: 1.2, roughness: 0.3,
     });
     const visor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.09, 0.12), this.visorMat);
     visor.position.set(0, 1.98, -0.26);
     // 背后符印(朱红发光的电子符)
-    this.sigilMat = new THREE.MeshStandardMaterial({
+    this.sigilMat = TOON({
       color: 0x1a0806, emissive: 0xff3a2a, emissiveIntensity: 0.8, roughness: 0.5,
     });
     const sigil = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.6, 0.04), this.sigilMat);
@@ -65,7 +66,7 @@ export class Hunter extends Creature {
     for (const sx of [-0.55, 0.55]) {
       const lamp = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.09),
-        new THREE.MeshStandardMaterial({ color: 0x0a0a12, emissive: 0xffd75e, emissiveIntensity: 1.0 })
+        TOON({ color: 0x0a0a12, emissive: 0xffd75e, emissiveIntensity: 1.0 })
       );
       lamp.position.set(sx, 1.7, 0.1);
       lamp.userData.float = true;
@@ -77,7 +78,7 @@ export class Hunter extends Creature {
 
     // 电浆符预制:燃着青焰的符纸
     this.torchGeo = new THREE.BoxGeometry(0.3, 0.02, 0.48);
-    this.torchMat = new THREE.MeshStandardMaterial({
+    this.torchMat = TOON({
       color: 0x10141c, emissive: 0x18e0c8, emissiveIntensity: 1.1,
     });
   }

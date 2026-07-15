@@ -10,10 +10,10 @@ import { rand, lerp, damp } from './util.js';
 const BLOOD_MOON_LEFT = 60; // 剩余多少秒时触发
 
 const NORMAL = {
-  bg: new THREE.Color(0xd9ae87),
+  bg: new THREE.Color(0xe8895e),
   fogNear: 70, fogFar: 260,
-  hemiSky: new THREE.Color(0xffd9ae), hemiGround: new THREE.Color(0x7a685a),
-  sunColor: new THREE.Color(0xffb26a), sunI: 1.35,
+  hemiSky: new THREE.Color(0x8a6acc), hemiGround: new THREE.Color(0x4a3a72),
+  sunColor: new THREE.Color(0xff9a3a), sunI: 1.7,
 };
 const RED = {
   bg: new THREE.Color(0x5a100a),
