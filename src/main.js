@@ -97,6 +97,16 @@ function startMatch(ui, config) {
   let last = performance.now();
 
   function frame(now) {
+    // 先排下一帧再跑逻辑:任何单帧异常只丢一帧,不会杀死主循环
+    requestAnimationFrame(frame);
+    try {
+      frameBody(now);
+    } catch (e) {
+      console.error('[frame]', e);
+    }
+  }
+
+  function frameBody(now) {
     const dt = clamp((now - last) / 1000, 0, 0.05);
     last = now;
     ctx.time += dt;
@@ -161,7 +171,6 @@ function startMatch(ui, config) {
     three.camera.lookAt(ctx.camTarget.x, 0, ctx.camTarget.z);
 
     three.composer.render();
-    requestAnimationFrame(frame);
   }
 
   function endMatch(reason) {

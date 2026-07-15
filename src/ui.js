@@ -73,6 +73,7 @@ export class UI {
   // 收服进度环:显示在目标鬼头顶
   captureRing(ctx, worldPos, progress) {
     const ring = this.el('capring');
+    if (!ring) return; // 防御:元素缺失时绝不能让异常打死主循环
     if (!ctx || !worldPos) { ring.style.display = 'none'; return; }
     const v = new THREE.Vector3(worldPos.x, (worldPos.y || 0) + 3, worldPos.z).project(ctx.three.camera);
     if (v.z > 1) { ring.style.display = 'none'; return; }
