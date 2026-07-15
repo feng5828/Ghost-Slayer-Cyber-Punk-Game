@@ -63,7 +63,7 @@ export class EventsSystem {
     // ---- 血月触发 ----
     if (!ctx.bloodMoon && remain <= BLOOD_MOON_LEFT) {
       ctx.bloodMoon = true;
-      ctx.ui.banner('血月升起 —— 它们开始猎杀你!击杀×2');
+      ctx.ui.banner('血月升起 —— 恶鬼开始反猎!斩杀×2');
       ctx.shake = Math.max(ctx.shake, 0.5);
     }
 

@@ -180,8 +180,8 @@ export function createProp(ctx, type, x, z, opts = {}) {
     state: {
       hp: def.hp, burning: null, hitCd: 0,
       thrownBy: null,       // {owner, chain, t} 被打飞后成为"弹药"的归因
-      charmedBy: null,      // 守护者魅化
-      desiredVel: null,     // 魅化时由守护者写入
+      charmedBy: null,      // 纸傀儡魅化
+      desiredVel: null,     // 魅化时由纸傀儡写入
     },
   };
   ctx.props.push(prop);
@@ -251,7 +251,7 @@ export function updateProps(ctx, dt) {
     p.mesh.quaternion.set(r.x, r.y, r.z, r.w);
     if (t.y < -8) { p.dead = true; cleanupProp(ctx, p); continue; }
 
-    // 魅化道具:守护者写入的期望速度
+    // 魅化道具:纸傀儡写入的期望速度
     if (p.state.desiredVel) {
       p.body.setLinvel(p.state.desiredVel, true);
     }
@@ -309,7 +309,7 @@ export function updateProps(ctx, dt) {
   }
 }
 
-// 吞噬碎片(金属球群成长用):返回被吞掉的数量
+// 吞噬碎片(鬼火群成长用):返回被吞掉的数量
 export function consumeDebrisNear(ctx, center, radius, maxCount) {
   let eaten = 0;
   for (let i = ctx.debris.length - 1; i >= 0 && eaten < maxCount; i--) {

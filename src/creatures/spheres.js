@@ -5,8 +5,8 @@ import { consumeDebrisNear, spawnDebris } from '../props.js';
 import { rand, damp, clamp } from '../util.js';
 
 // ============================================================================
-// 金属球群:操控群体中心,球按数学阵型运转(原作 Lissajous 轨道)
-// 云雾阵型巡航 / 钻头突刺(左键) / 环形绞盘(右键) —— 吞噬碎片成长
+// 鬼火群(青磷阴火):操控群体中心,火团按数学阵型运转(原作 Lissajous 轨道)
+// 云雾阵型巡航 / 凝形锥突刺(左键) / 环形火阵(右键) —— 吞噬残骸成长
 // ============================================================================
 
 const START_COUNT = 14;
@@ -15,14 +15,17 @@ const GROW_PER_HP = 70;
 
 export class Spheres extends Creature {
   constructor(ctx, opts) {
-    super(ctx, { ...opts, kind: 'spheres', cname: '金属球群', color: 0xc3cad2 });
+    super(ctx, { ...opts, kind: 'spheres', cname: '鬼火群', color: 0x8fe8c4 });
     this.count = START_COUNT;
     this.growth = 0;
     this.dmgAccum = 0;
     this.mode = 'cloud';
     this.drillDir = new THREE.Vector3(0, 0, -1);
 
-    this.mat = new THREE.MeshStandardMaterial({ color: 0xbfc7d0, metalness: 0.85, roughness: 0.25 });
+    this.mat = new THREE.MeshStandardMaterial({
+      color: 0x1a3a30, metalness: 0.0, roughness: 0.6,
+      emissive: 0x3fbf92, emissiveIntensity: 0.9,
+    });
     this.imesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.34, 10, 8), this.mat, MAX_COUNT);
     this.imesh.castShadow = true;
     this.root.add(this.imesh);
@@ -48,7 +51,7 @@ export class Spheres extends Creature {
     }
   }
 
-  hpText() { return `球数 ${this.count}`; }
+  hpText() { return `火团 ${this.count}`; }
   hpRatio() { return this.count / MAX_COUNT; }
 
   hittable() {
@@ -65,7 +68,7 @@ export class Spheres extends Creature {
       this.dmgAccum -= 12;
       this.count--;
       if (this.count >= 0 && this.balls[this.count]) {
-        spawnDebris(this.ctx, this.balls[this.count].pos.clone(), 0xbfc7d0, 1, null);
+        spawnDebris(this.ctx, this.balls[this.count].pos.clone(), 0x8fe8c4, 1, null);
       }
       if (this.count < 5) { this.die(src); return; }
     }
@@ -101,11 +104,14 @@ export class Spheres extends Creature {
     this.collide();
     this.pos.y = 0;
 
-    // 电击:带电球群反而更危险(涌现 buff),但持续自损
+    // 电击:带电鬼火烧得更炽(涌现 buff),但持续自损
     const elec = this.elecT > 0;
     if (elec) this.dmgAccum += 1.5 * dt;
-    this.mat.emissive.setHex(elec ? 0x4488ff : 0x000000);
-    this.mat.emissiveIntensity = elec ? (0.5 + Math.sin(ctx.time * 25) * 0.4) : 0;
+    this.mat.emissive.setHex(elec ? 0x4488ff : 0x3fbf92);
+    // 磷火幽幽明灭
+    this.mat.emissiveIntensity = elec
+      ? (0.9 + Math.sin(ctx.time * 25) * 0.5)
+      : (0.75 + Math.sin(ctx.time * 6.5) * 0.25);
 
     // 阵型目标位置
     const t = ctx.time;

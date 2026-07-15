@@ -5,8 +5,8 @@ import { spawnDebris } from '../props.js';
 import { clamp, damp } from '../util.js';
 
 // ============================================================================
-// 红龙:分节身体蛇形跟随(移植原作 Creature.lua 的链式算法)
-// 身体就是武器 —— 高速掠过撞碎一切;破坏得越多长得越长
+// 蜈蚣精(百足之妖):分节身体蛇形跟随(移植原作 Creature.lua 的链式算法)
+// 身体就是武器 —— 高速掠过撞碎一切;吞噬得越多长得越长
 // ============================================================================
 
 const SPACING = 1.05;
@@ -20,7 +20,7 @@ const GROW_PER_HP = 55; // 每破坏55点HP的东西长一节
 
 export class Dragon extends Creature {
   constructor(ctx, opts) {
-    super(ctx, { ...opts, kind: 'dragon', cname: '红龙', color: 0xd23a2a });
+    super(ctx, { ...opts, kind: 'dragon', cname: '蜈蚣精', color: 0xd23a2a });
     this.segs = [];       // {pos, mesh}
     this.growth = 0;
     this.dmgAccum = 0;
@@ -36,7 +36,7 @@ export class Dragon extends Creature {
     this.coneGeo = new THREE.ConeGeometry(0.15, 0.6, 8);
 
     for (let i = 0; i < SEG_START; i++) this.addSegment(true);
-    // 头部双角(原作造型)
+    // 头部双触角(原作造型)
     const head = this.segs[0].mesh;
     for (const hx of [-0.5, 0.5]) {
       const horn = new THREE.Mesh(this.coneGeo, this.hornMat);
@@ -54,6 +54,16 @@ export class Dragon extends Creature {
     const mesh = new THREE.Mesh(this.sphereGeo, i === 0 ? this.headMat : this.bodyMat);
     mesh.scale.setScalar(r);
     mesh.castShadow = true;
+    // 百足:每节两侧伸出的细足
+    if (i > 0) {
+      for (const side of [-1, 1]) {
+        const leg = new THREE.Mesh(this.coneGeo, this.hornMat);
+        leg.position.set(side * 0.85, -0.5, 0);
+        leg.rotation.z = side * 2.1;
+        leg.scale.set(0.7, 1.4, 0.7);
+        mesh.add(leg);
+      }
+    }
     this.root.add(mesh);
     const tail = init && i > 0 ? this.segs[i - 1].pos : (this.segs[i - 1]?.pos ?? this.pos);
     this.segs.push({ pos: tail.clone().add(new THREE.Vector3(0, 0, SPACING * (init ? 1 : 0.2))), mesh, r });

@@ -3,17 +3,17 @@ import { rand } from './util.js';
 import { propPos } from './props.js';
 
 // ============================================================================
-// 信号系统:捉迷藏的核心 —— 生物不直接显形,而是"污染"周围的场景
-//   红龙     → 附近飘起红色余烬,道具被热浪熏得低频晃动
-//   金属球群 → 附近道具高频震颤,银色磁尘浮起
-//   守护者   → 附近道具诡异地缓慢漂浮,金色光点游走
-// 距离越近信号越强;屏幕边缘的红色脉动是心跳(任一生物贴近时)
+// 信号系统:捉迷藏的核心 —— 恶鬼不直接显形,而是"污染"周围的场景
+//   蜈蚣精 → 附近飘起焦热瘴气余烬,器物被熏得低频晃动
+//   鬼火群 → 附近器物阴风高频震颤,青磷浮起
+//   纸傀儡 → 附近杂物被怨气托得诡异漂浮,惨白纸灰游走
+// 距离越近信号越强;屏幕边缘的红色脉动是心跳(任一恶鬼贴近时)
 // ============================================================================
 
 const CUES = {
   dragon:   { color: 0xff5a2a, riseMin: 1.5, riseMax: 3.0, jitterFreq: 4,  jitterAmp: 0.055 },
-  spheres:  { color: 0xdde6ee, riseMin: 0.2, riseMax: 0.7, jitterFreq: 42, jitterAmp: 0.035 },
-  guardian: { color: 0xffd75e, riseMin: 0.5, riseMax: 1.0, jitterFreq: 1.2, jitterAmp: 0.09 },
+  spheres:  { color: 0x8fe8c4, riseMin: 0.2, riseMax: 0.7, jitterFreq: 42, jitterAmp: 0.035 },
+  guardian: { color: 0xf0e6e8, riseMin: 0.5, riseMax: 1.0, jitterFreq: 1.2, jitterAmp: 0.09 },
 };
 const SIGNAL_RANGE = 24;   // 玩家距生物多远开始出现信号
 const CUE_RADIUS = 7;      // 生物周围多大范围的道具被"污染"

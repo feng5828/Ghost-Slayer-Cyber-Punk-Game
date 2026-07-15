@@ -5,58 +5,66 @@ import { propPos } from '../props.js';
 import { damp } from '../util.js';
 
 // ============================================================================
-// 守护者:原作里唯一的善意,在这里黑化成最阴险的操纵者
-// 凝视魅化(左键长按)把道具变成仆从环绕自己;指挥突击(右键)全员导弹化
-// 不能直接破坏 —— 它的力量全部来自被它操纵的东西
+// 纸傀儡(操偶怨魂):原作"友善守护者"的怨灵转世,最阴险的操纵者
+// 怨视附物(左键长按)让怨气附上器物成为傀儡环绕自己;摄魂令(右键)全员扑杀
+// 不能直接破坏 —— 它的力量全部来自被怨气附身的东西(连村民也能摄魂)
 // ============================================================================
 
 const MAX_MINIONS = 4;
 const CHARM_TIME = 0.7;
-const CHARM_RANGE = 30;   // 距守护者
+const CHARM_RANGE = 30;   // 距纸傀儡
 const CURSOR_RANGE = 5;   // 距鼠标点
 const MAX_HP = 120;
 
 export class Guardian extends Creature {
   constructor(ctx, opts) {
-    super(ctx, { ...opts, kind: 'guardian', cname: '守护者', color: 0xeadfb8 });
+    super(ctx, { ...opts, kind: 'guardian', cname: '纸傀儡', color: 0xefe8dc });
     this.hp = MAX_HP;
     this.minions = [];        // 魅化的道具
     this.charmTarget = null;
     this.charmProgress = 0;
     this.hoverY = 1.8;
 
-    // 造型:米黄陶瓷球 + 蓝眼睛 + 天线星星(原作造型移植)
-    const body = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 16, 12),
-      new THREE.MeshStandardMaterial({ color: 0xeadfb8, roughness: 0.7 })
-    );
+    // 造型:惨白纸人 —— 扁平纸身 + 墨点眼 + 红腮 + 头顶红符
+    const paperMat = new THREE.MeshStandardMaterial({ color: 0xefe8dc, roughness: 0.95 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), paperMat);
+    body.scale.z = 0.35; // 压扁成纸片
     body.castShadow = true;
     this.bodyMesh = body;
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x2650d9, roughness: 0.3 });
+    const inkMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.8 });
     for (const ex of [-0.2, 0.2]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), eyeMat);
-      eye.position.set(ex, 0.1, -0.45);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), inkMat);
+      eye.position.set(ex, 0.12, -0.52);
+      eye.scale.z = 0.4;
       body.add(eye);
     }
+    const cheekMat = new THREE.MeshStandardMaterial({ color: 0xc23434, roughness: 0.9 });
+    for (const ex of [-0.32, 0.32]) {
+      const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), cheekMat);
+      cheek.position.set(ex, -0.08, -0.5);
+      cheek.scale.z = 0.3;
+      body.add(cheek);
+    }
+    // 头顶红符(替代原作的天线星星)
     const star = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.16),
-      new THREE.MeshStandardMaterial({ color: 0xffd75e, emissive: 0x886611, roughness: 0.4 })
+      new THREE.BoxGeometry(0.22, 0.5, 0.03),
+      new THREE.MeshStandardMaterial({ color: 0xc22a1a, emissive: 0x661008, roughness: 0.6 })
     );
     star.position.y = 1.0;
     this.star = star;
     body.add(star);
     this.root.add(body);
 
-    // 凝视射线可视化
+    // 怨视射线可视化(惨红怨气)
     this.ray = new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.05, 1, 6, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0x7ac8ff, transparent: true, opacity: 0.6, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color: 0xff6a5a, transparent: true, opacity: 0.55, depthWrite: false })
     );
     this.ray.visible = false;
     ctx.three.scene.add(this.ray);
   }
 
-  hpText() { return `核心 ${Math.ceil(this.hp)} / 仆从 ${this.minions.length}`; }
+  hpText() { return `纸身 ${Math.ceil(this.hp)} / 傀儡 ${this.minions.length}`; }
   hpRatio() { return this.hp / MAX_HP; }
 
   hittable() { return [{ pos: this.pos, r: 0.9 }]; }
@@ -107,12 +115,12 @@ export class Guardian extends Creature {
     this.ray.visible = false;
     if (input.primaryHeld && input.aim && this.stun <= 0) {
       const cand = this.findCharmCandidate(input.aim);
-      // 没有道具目标时,试着魅化鼠标附近的孤魂(变成自爆仆从)
+      // 没有器物目标时,试着摄魂鼠标附近的村民(变成自爆傀儡)
       if (!cand && (this._critterCd || 0) < ctx.time) {
         const cr = ctx.critters.charmNear(input.aim, this, 2.5);
         if (cr) {
           this._critterCd = ctx.time + 1.0;
-          if (this.isPlayer) ctx.ui.popup(ctx, '魅化了孤魂', cr.pos, 0);
+          if (this.isPlayer) ctx.ui.popup(ctx, '摄魂了村民', cr.pos, 0);
         }
       }
       if (cand !== this.charmTarget) { this.charmTarget = cand; this.charmProgress = 0; }
@@ -149,7 +157,7 @@ export class Guardian extends Creature {
         for (const m of this.minions) {
           m.state.missile = { target: enemy, t: 0 };
         }
-        if (this.isPlayer) ctx.ui.popup(ctx, '突击!', this.pos, 1);
+        if (this.isPlayer) ctx.ui.popup(ctx, '摄魂令!', this.pos, 1);
       }
     }
 
@@ -173,12 +181,12 @@ export class Guardian extends Creature {
         dir.normalize();
         m.state.desiredVel = { x: dir.x * 34, y: dir.y * 34, z: dir.z * 34 };
         if (dist < 2.5) {
-          // 命中:小爆炸,归因守护者,连锁深度1(被操纵物=一层连锁)
+          // 命中:小爆炸,归因纸傀儡,连锁深度1(被操纵物=一层连锁)
           const at = mp.clone();
           this.minions.splice(i, 1);
           this.releaseMinion(m);
           explode(ctx, at, 4.5, 45 + m.body.mass() * 8, { owner: this, chain: 1 });
-          // 仆从自身作为弹药被消耗(也给守护者计分)
+          // 仆从自身作为弹药被消耗(也给纸傀儡计分)
           destroyProp(ctx, m, { owner: this, chain: 1 });
         }
       } else {
@@ -211,11 +219,11 @@ export class Guardian extends Creature {
       const old = this.minions.shift();
       this.releaseMinion(old);
     }
-    if (this.isPlayer) this.ctx.ui.popup(this.ctx, `魅化了${prop.def.name}`, propPos(prop), 0);
+    if (this.isPlayer) this.ctx.ui.popup(this.ctx, `怨气附上了${prop.def.name}`, propPos(prop), 0);
   }
 
   nearestEnemy() {
-    // 猎杀模式:守护者的敌人永远是猎人
+    // 猎杀模式:纸傀儡的敌人永远是猎人
     const p = this.ctx.player;
     if (p && p.alive && p !== this) return p;
     let best = null, bd = Infinity;

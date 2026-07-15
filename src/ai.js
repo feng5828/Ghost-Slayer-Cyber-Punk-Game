@@ -5,7 +5,7 @@ import { propPos } from './props.js';
 // ============================================================================
 // HiderAI:躲藏生物的控制器(捉迷藏的"藏"方)
 // 状态:lurk 潜伏 → flee 逃窜(玩家靠近/受击) → fight 反击(被逼入绝境/血月)
-// 逃窜走迷宫 BFS;金属球群被逼急了会钻穿树篱开路
+// 逃窜走迷宫 BFS;鬼火群被逼急了会钻穿树篱开路
 // ============================================================================
 
 export class HiderAI {
@@ -80,7 +80,7 @@ export class HiderAI {
           this.target.set(cc.x + rand(-4, 4), 0, cc.z + rand(-4, 4));
           this.breachTarget = null;
         } else if (c.kind === 'spheres') {
-          // 无路可逃:金属球群钻墙!
+          // 无路可逃:鬼火群钻墙!
           this.breachTarget = this.nearestHedge();
         } else {
           // 其他生物被堵死 → 拼命
@@ -127,7 +127,7 @@ export class HiderAI {
         }
       }
     } else if (this.breachTarget && !this.breachTarget.dead) {
-      // 金属球群钻墙
+      // 鬼火群钻墙
       const bp = propPos(this.breachTarget);
       this.aim.copy(bp).setY(0);
       const dx = bp.x - c.pos.x, dz = bp.z - c.pos.z;
@@ -143,7 +143,7 @@ export class HiderAI {
         mx = (dx / d) * spd; mz = (dz / d) * spd;
       }
       this.aim.copy(this.target);
-      // 红龙逃跑时偶尔冲刺(会撞碎沿途的东西 → 给玩家留下线索!)
+      // 蜈蚣精逃跑时偶尔冲刺(会撞碎沿途的东西 → 给玩家留下线索!)
       if (c.kind === 'dragon' && this.state === 'flee' && this.pulse <= 0 && Math.random() < 0.3) {
         primary = true;
         this.pulse = rand(2.5, 4);

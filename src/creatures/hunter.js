@@ -6,9 +6,9 @@ import { nearbyProps, damageProp } from '../damage.js';
 import { damp, clamp } from '../util.js';
 
 // ============================================================================
-// 猎杀者(玩家):超现实生物的猎人
-// 左键/空格 = 突刺斩击(位移+挥砍,击杀主力)
-// 右键 = 掷火把(点燃落点 → 用火焰系统把躲藏的生物逼出来)
+// 猎魔人(玩家):斩妖除魔的夜行者
+// 左键/空格 = 桃木剑突刺斩(位移+挥砍,斩妖主力)
+// 右键 = 掷火符(符落起火 → 用火焰把躲藏的恶鬼逼出来)
 // ============================================================================
 
 const MAX_HP = 120;
@@ -25,7 +25,7 @@ const REGEN_RATE = 5;
 
 export class Hunter extends Creature {
   constructor(ctx, opts) {
-    super(ctx, { ...opts, kind: 'hunter', cname: '猎杀者', color: 0x3a4a6a });
+    super(ctx, { ...opts, kind: 'hunter', cname: '猎魔人', color: 0x3a4a6a });
     this.hp = MAX_HP;
     this.colRadius = 0.7;
     this.attackCd = 0;
@@ -53,19 +53,20 @@ export class Hunter extends Creature {
       eye.position.set(ex, 1.88, -0.28);
       this.root.add(eye);
     }
+    // 桃木剑:暗红木色,剑脊一线朱砂
     this.blade = new THREE.Mesh(
-      new THREE.BoxGeometry(0.09, 0.02, 1.7),
-      new THREE.MeshStandardMaterial({ color: 0xcdd6e2, metalness: 0.8, roughness: 0.25 })
+      new THREE.BoxGeometry(0.09, 0.03, 1.7),
+      new THREE.MeshStandardMaterial({ color: 0x9a5a3a, roughness: 0.6, emissive: 0x3a0d05, emissiveIntensity: 0.4 })
     );
     this.blade.position.set(0.5, 1.1, -0.5);
     this.figure = new THREE.Group();
     this.figure.add(cloak, head, this.blade);
     this.root.add(this.figure);
 
-    // 火把预制
-    this.torchGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
+    // 火符预制:一张燃着的黄符纸
+    this.torchGeo = new THREE.BoxGeometry(0.3, 0.02, 0.48);
     this.torchMat = new THREE.MeshStandardMaterial({
-      color: 0x6a4a2a, emissive: 0xcc5510, emissiveIntensity: 0.8,
+      color: 0xf0dc9a, emissive: 0xcc4410, emissiveIntensity: 0.9,
     });
   }
 
@@ -124,7 +125,7 @@ export class Hunter extends Creature {
     }
     this.collide();
 
-    // ---- 掷火把 ----
+    // ---- 掷火符 ----
     if (input.secondary && this.torchCd <= 0 && this.stun <= 0 && input.aim) {
       this.torchCd = TORCH_CD;
       const to = input.aim.clone().setY(0);
@@ -137,7 +138,7 @@ export class Hunter extends Creature {
         dur: 0.45 + to.distanceTo(this.pos) * 0.012,
       });
     }
-    // 火把飞行
+    // 火符飞行(纸片翻飞)
     for (let i = this.torches.length - 1; i >= 0; i--) {
       const tc = this.torches[i];
       tc.t += dt;

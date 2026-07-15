@@ -62,7 +62,7 @@ export class Creature {
       src && src.owner ? { owner: src.owner, chain: src.chain + 1 } : null);
     const credited = src && src.owner && src.owner !== this && src.owner.alive;
     if (credited) this.ctx.score.killBonus(this.ctx, src.owner, this);
-    // 玩家击杀时 killBonus 已弹"猎杀"横幅,不再覆盖
-    if (!(credited && src.owner.isPlayer)) this.ctx.ui.banner(`${this.cname} 被摧毁了!`);
+    // 玩家击杀时 killBonus 已弹"斩杀"横幅,不再覆盖
+    if (!(credited && src.owner.isPlayer)) this.ctx.ui.banner(`${this.cname} 灰飞烟灭了!`);
   }
 }

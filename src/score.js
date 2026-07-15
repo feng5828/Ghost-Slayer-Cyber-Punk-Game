@@ -23,8 +23,8 @@ export class ScoreSystem {
       let pts = 400 + (owner.stats.kills - 1) * 150;
       if (ctx.bloodMoon) pts *= 2;
       owner.score += pts;
-      ctx.ui.popup(ctx, `猎杀 ${victim.cname} +${pts}${ctx.bloodMoon ? ' 血月×2' : ''}`, victim.pos, 3);
-      ctx.ui.banner(`猎杀 ${victim.cname}!(第 ${owner.stats.kills} 只)`);
+      ctx.ui.popup(ctx, `斩杀 ${victim.cname} +${pts}${ctx.bloodMoon ? ' 血月×2' : ''}`, victim.pos, 3);
+      ctx.ui.banner(`斩杀 ${victim.cname}!(第 ${owner.stats.kills} 只)`);
     } else {
       owner.score += 300;
       owner.stats.kills++;
