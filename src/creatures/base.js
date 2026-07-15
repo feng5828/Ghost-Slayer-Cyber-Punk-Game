@@ -72,7 +72,7 @@ export class Creature {
       this.ctx.three.scene.add(this.soulRing);
     }
     this.soulRing.visible = true;
-    this.ctx.ui.banner(`${this.cname} 虚弱了 —— 靠近按住右键展开结界收服!`);
+    this.ctx.ui.banner(`${this.cname} 虚弱了 —— 靠近按 Q 展开结界收服!`);
   }
 
   // 虚弱期间的每帧表现;返回 true 表示本帧跳过正常行为

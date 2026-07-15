@@ -24,7 +24,7 @@ export class UI {
       <div style="max-width:660px;text-align:center;font-size:15px;line-height:1.9;color:#a8b0ba">
         赛博时代,恶鬼藏进了霓虹街区。你是持牌上岗的职业猎鬼人。<br>
         它们不会现身 —— 但邪气会<span style="color:#ffd67a">污染周围的场景</span>。读懂信号,找到它们。<br>
-        <span style="color:#18e0c8">蓄力冲撞把鬼打到虚弱,再按住右键展开结界收服 —— 只有收进结界才算数。</span><br>
+        <span style="color:#18e0c8">蓄力冲撞把鬼打到虚弱,再按 Q 展开结界收服 —— 只有收进结界才算数。</span><br>
         结界消耗灵力,灵力靠破坏场景获取:拆得越狠,收得越多。3 分钟,收服分递增。E 电浆符纵火驱鬼,小心市民。
       </div>`;
     this.el('cards').innerHTML = `<div class="legendbox">${SIGNAL_LEGEND}</div>`;
@@ -41,7 +41,7 @@ export class UI {
   startHud(ctx) {
     this.el('hud').style.display = 'block';
     this.el('hint').innerHTML =
-      'WASD 移动 · 按住左键/空格蓄力,松开冲撞<br>把鬼打到虚弱,<span style="color:#ffd75e">按住右键展开结界收服</span>(耗30灵力)<br>破坏场景获取灵力 · E 掷电浆符纵火驱鬼';
+      'WASD 移动 · 按住左键/空格蓄力,松开冲撞<br>把鬼打到虚弱,<span style="color:#ffd75e">按 Q 展开结界收服</span>(耗30灵力)<br>破坏场景获取灵力 · E 掷电浆符纵火驱鬼';
   }
 
   updateHud(ctx) {

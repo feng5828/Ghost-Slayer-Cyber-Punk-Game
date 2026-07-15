@@ -20,6 +20,7 @@ export class Input {
       if (e.code === 'Space') { this._primaryPress = true; this.primaryHeld = true; e.preventDefault(); }
       if (e.code === 'ShiftLeft') { this._secondaryPress = true; this.secondaryHeld = true; }
       if (e.code === 'KeyE') this._tertiaryPress = true;
+      if (e.code === 'KeyQ') this._barrierPress = true;
     });
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.code);
@@ -66,10 +67,12 @@ export class Input {
       secondary: this._secondaryPress,
       secondaryHeld: this.secondaryHeld,
       tertiary: this._tertiaryPress, // E 键:电浆符
+      barrier: this._barrierPress,   // Q 键:结界
     };
     this._primaryPress = false;
     this._secondaryPress = false;
     this._tertiaryPress = false;
+    this._barrierPress = false;
     return out;
   }
 }

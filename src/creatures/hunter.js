@@ -28,9 +28,11 @@ const TORCH_CD = 4.0;
 const TORCH_RANGE = 22;
 const REGEN_DELAY = 5.0;
 const REGEN_RATE = 5;
-// 结界收服
-const BARRIER_RADIUS = 7;     // 结界半径:目标须在此范围内
-const BARRIER_COST = 30;      // 收服消耗灵力
+// 结界收服(Q 键施放,置放式场域)
+const CAST_RANGE = 8;         // 多远内的鬼会被结界锁定为圆心
+const FIELD_R = 5.5;          // 场域半径:目标跑出即挣脱
+const BARRIER_COST = 30;      // 施放消耗灵力(空放也消耗)
+const FIELD_CD = 0.7;         // 施放间隔
 const SPIRIT_MAX = 100;
 const SPIRIT_REGEN = 1.2;     // 灵力被动回复/秒(主要靠破坏获取)
 
@@ -50,7 +52,8 @@ export class Hunter extends Creature {
     this.torches = [];
     this.facing = 0;
     this.spirit = 40;
-    this.barrier = null;   // {target, t, need}
+    this.field = null;     // 结界场域 {group, target, t, need, fading}
+    this.fieldCd = 0;
 
     // 造型:深色义体 + 青色面甲光条 + 背后符印发光 + 悬浮肩灯
     const suitMat = TOON({ color: 0x161a28, metalness: 0.55, roughness: 0.4 });
@@ -89,35 +92,116 @@ export class Hunter extends Creature {
       color: 0x10141c, emissive: 0x18e0c8, emissiveIntensity: 1.1,
     });
 
-    // 结界法阵:双环
-    this.barrierMat = new THREE.MeshBasicMaterial({
-      color: 0x18e0c8, transparent: true, opacity: 0.75, depthWrite: false,
-    });
-    this.barrierRing = new THREE.Mesh(new THREE.TorusGeometry(BARRIER_RADIUS, 0.12, 8, 48), this.barrierMat);
-    this.barrierRing.rotation.x = Math.PI / 2;
-    this.barrierRing.visible = false;
-    this.barrierRing2 = new THREE.Mesh(new THREE.TorusGeometry(BARRIER_RADIUS * 0.7, 0.07, 8, 40), this.barrierMat);
-    this.barrierRing2.rotation.x = Math.PI / 2;
-    this.barrierRing2.visible = false;
-    this.root.add(this.barrierRing, this.barrierRing2);
+    // 结界场域的共享几何(单位尺寸,施放时整体缩放)
+    this.fieldRingGeo = new THREE.TorusGeometry(1, 0.028, 8, 56);
+    this.fieldWallGeo = new THREE.CylinderGeometry(1, 1, 3, 40, 1, true);
   }
 
+  // 收服概率最高 = 虚弱优先,其次血量最少
   findBarrierTarget() {
     let best = null, bestScore = -1;
     for (const c of this.ctx.creatures) {
       if (c === this || !c.alive) continue;
-      if (c.pos.distanceTo(this.pos) > BARRIER_RADIUS) continue;
-      const s = c.weakened ? 10 : 1 - c.hpRatio(); // 优先虚弱,其次血最少的
+      if (c.pos.distanceTo(this.pos) > CAST_RANGE) continue;
+      const s = c.weakened ? 10 : 1 - c.hpRatio();
       if (s > bestScore) { bestScore = s; best = c; }
     }
     return best;
   }
 
-  cancelBarrier() {
-    this.barrier = null;
-    this.barrierRing.visible = false;
-    this.barrierRing2.visible = false;
+  // ---- 施放结界:近鬼锁鬼为圆心,无鬼在自己脚下空放(纯视觉) ----
+  castField() {
+    const ctx = this.ctx;
+    this.dismissField(true);
+    const target = this.findBarrierTarget();
+    const center = (target ? target.pos : this.pos).clone().setY(0);
+
+    const group = new THREE.Group();
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x2ee8ff, transparent: true, opacity: 0.9, depthWrite: false,
+    });
+    const wallMat = new THREE.MeshBasicMaterial({
+      color: 0x2ee8ff, transparent: true, opacity: 0.16, depthWrite: false,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    });
+    const ringLow = new THREE.Mesh(this.fieldRingGeo, ringMat);
+    ringLow.rotation.x = Math.PI / 2; ringLow.position.y = 0.25;
+    const ringHigh = new THREE.Mesh(this.fieldRingGeo, ringMat);
+    ringHigh.rotation.x = Math.PI / 2; ringHigh.position.y = 2.9;
+    ringHigh.scale.setScalar(0.85);
+    const wall = new THREE.Mesh(this.fieldWallGeo, wallMat);
+    wall.position.y = 1.5;
+    group.add(ringLow, ringHigh, wall);
+    group.position.copy(center);
+    group.scale.set(0.01, 1, 0.01);
+    ctx.three.scene.add(group);
+
+    this.field = {
+      group, ringMat, wallMat, center, target,
+      t: 0,
+      need: target ? (target.weakened ? 1.0 : 1.4 + target.hpRatio() * 4.5) : 0.9,
+      fading: 0,
+    };
+  }
+
+  dismissField(instant = false) {
+    const f = this.field;
+    if (!f) return;
     this.ctx.ui.captureRing(null);
+    if (instant) {
+      this.ctx.three.scene.remove(f.group);
+      f.ringMat.dispose(); f.wallMat.dispose();
+      this.field = null;
+    } else {
+      f.fading = 0.35;
+      f.target = null;
+    }
+  }
+
+  updateField(dt) {
+    const f = this.field;
+    if (!f) return;
+    const ctx = this.ctx;
+    f.t += dt;
+
+    // 展开动画:缓出弹开
+    const grow = Math.min(f.t * 3.2, 1);
+    const s = FIELD_R * (1 - Math.pow(1 - grow, 3));
+    f.group.scale.set(Math.max(s, 0.01), 1, Math.max(s, 0.01));
+    f.group.rotation.y += dt * 1.4;
+    f.wallMat.opacity = (0.13 + Math.sin(ctx.time * 9) * 0.05) * (f.fading > 0 ? f.fading / 0.35 : 1);
+
+    // 淡出中
+    if (f.fading > 0) {
+      f.fading -= dt;
+      f.ringMat.opacity = 0.9 * Math.max(f.fading / 0.35, 0);
+      if (f.fading <= 0) this.dismissField(true);
+      return;
+    }
+
+    if (f.target) {
+      const tg = f.target;
+      if (!tg.alive) return this.dismissField();
+      // 目标跑出场域 → 挣脱
+      if (tg.pos.distanceTo(f.center) > FIELD_R + 0.6) {
+        ctx.ui.popup(ctx, `${tg.cname} 挣脱了结界!`, tg.pos, 'bad');
+        return this.dismissField();
+      }
+      const prog = f.t / f.need;
+      ctx.ui.captureRing(ctx, tg.pos, prog);
+      // 快收满时法阵转金
+      const gold = prog > 0.75;
+      f.ringMat.color.setHex(gold ? 0xffd75e : 0x2ee8ff);
+      f.wallMat.color.setHex(gold ? 0xffd75e : 0x2ee8ff);
+      if (f.t >= f.need) {
+        const t = f.target;
+        this.dismissField(true);
+        t.capture(this);
+      }
+    } else if (f.t >= f.need) {
+      // 空放:视觉展示完毕即散
+      this.dismissField();
+    }
   }
 
   hpText() { return `生命 ${Math.ceil(this.hp)}`; }
@@ -129,11 +213,6 @@ export class Hunter extends Creature {
     this.hp -= n;
     this.lastHurtAt = this.ctx.time;
     this.ctx.ui.hurtFlash();
-    // 受击打断结界引导
-    if (this.barrier) {
-      this.cancelBarrier();
-      this.ctx.ui.popup(this.ctx, '结界被打断!', this.pos, 'bad');
-    }
     if (this.hp <= 0) this.die(src);
   }
 
@@ -150,48 +229,21 @@ export class Hunter extends Creature {
     }
     this.spirit = Math.min(this.spirit + SPIRIT_REGEN * dt, SPIRIT_MAX);
 
-    // ---- 结界收服(右键按住引导)----
-    // 虚弱的鬼 1 秒收服;满血强收要引导数秒,期间被打就断
-    if (input.secondaryHeld && this.stun <= 0 && this.dashT <= 0) {
-      const target = this.findBarrierTarget();
-      if (!target) {
-        this.cancelBarrier();
-      } else if (this.spirit < BARRIER_COST) {
-        this.cancelBarrier();
+    // ---- 结界收服(Q 键施放置放式场域)----
+    this.fieldCd -= dt;
+    if (input.barrier && this.stun <= 0 && this.fieldCd <= 0) {
+      if (this.spirit < BARRIER_COST) {
         if ((this._spiritWarnCd || 0) < ctx.time) {
           this._spiritWarnCd = ctx.time + 1.5;
           ctx.ui.popup(ctx, `灵力不足(需${BARRIER_COST},破坏场景获取)`, this.pos, 'bad');
         }
       } else {
-        if (!this.barrier || this.barrier.target !== target) {
-          this.barrier = {
-            target, t: 0,
-            need: target.weakened ? 1.0 : 1.4 + target.hpRatio() * 4.5,
-          };
-        }
-        this.barrier.t += dt;
-        this.charging = false;
-        this.chargeT = 0;
-        // 法阵视觉:双环旋转,进度越满越金
-        const prog = this.barrier.t / this.barrier.need;
-        this.barrierRing.visible = this.barrierRing2.visible = true;
-        this.barrierRing.position.set(this.pos.x, 0.35, this.pos.z);
-        this.barrierRing2.position.set(this.pos.x, 0.55, this.pos.z);
-        this.barrierRing.rotation.z += dt * 1.2;
-        this.barrierRing2.rotation.z -= dt * 2.0;
-        this.barrierMat.color.setHex(prog > 0.99 ? 0xffd75e : (prog > 0.6 ? 0xa0e8a0 : 0x18e0c8));
-        ctx.ui.captureRing(ctx, this.barrier.target.pos, prog);
-
-        if (this.barrier.t >= this.barrier.need) {
-          this.spirit -= BARRIER_COST;
-          const t = this.barrier.target;
-          this.cancelBarrier();
-          t.capture(this);
-        }
+        this.spirit -= BARRIER_COST;
+        this.fieldCd = FIELD_CD;
+        this.castField();
       }
-    } else if (this.barrier) {
-      this.cancelBarrier();
     }
+    this.updateField(dt);
 
     // ---- 蓄力 → 松开冲撞 ----
     if (this.stun > 0) { this.charging = false; this.chargeT = 0; }
@@ -238,7 +290,7 @@ export class Hunter extends Creature {
         addFlash(ctx, this.pos.clone().setY(1.0), 1.2, 0x18e0c8);
       }
     } else {
-      const slow = this.barrier ? 0.3 : (this.charging ? CHARGE_MOVE_MULT : 1);
+      const slow = this.charging ? CHARGE_MOVE_MULT : 1;
       this.moveCommon(dt, input, SPEED * slow, 9);
     }
     this.collide();
