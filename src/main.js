@@ -86,6 +86,9 @@ function startMatch(ui, config) {
 
   const respawnQueue = []; // {at, kind}
 
+  // 预编译全场景着色器:避免首次施法/特效/泛光时现场编译造成卡顿
+  three.renderer.compile(three.scene, three.camera);
+
   const input = new Input(three.camera);
   ui.startHud(ctx);
   ui.banner('读懂场景的信号,找出躲藏的生物');

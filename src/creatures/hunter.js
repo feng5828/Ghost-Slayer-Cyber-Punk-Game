@@ -92,9 +92,28 @@ export class Hunter extends Creature {
       color: 0x10141c, emissive: 0x18e0c8, emissiveIntensity: 1.1,
     });
 
-    // 结界场域的共享几何(单位尺寸,施放时整体缩放)
-    this.fieldRingGeo = new THREE.TorusGeometry(1, 0.028, 8, 56);
-    this.fieldWallGeo = new THREE.CylinderGeometry(1, 1, 3, 40, 1, true);
+    // 结界场域:常驻复用的装置(每次施放只重置状态,零分配零销毁,避免卡顿)
+    this.fieldRingMat = new THREE.MeshBasicMaterial({
+      color: 0x2ee8ff, transparent: true, opacity: 0.9, depthWrite: false,
+    });
+    this.fieldWallMat = new THREE.MeshBasicMaterial({
+      color: 0x2ee8ff, transparent: true, opacity: 0.16, depthWrite: false,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    });
+    const ringGeo = new THREE.TorusGeometry(1, 0.028, 8, 56);
+    const ringLow = new THREE.Mesh(ringGeo, this.fieldRingMat);
+    ringLow.rotation.x = Math.PI / 2; ringLow.position.y = 0.25;
+    const ringHigh = new THREE.Mesh(ringGeo, this.fieldRingMat);
+    ringHigh.rotation.x = Math.PI / 2; ringHigh.position.y = 2.9;
+    ringHigh.scale.setScalar(0.85);
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(1, 1, 3, 40, 1, true), this.fieldWallMat
+    );
+    wall.position.y = 1.5;
+    this.fieldGroup = new THREE.Group();
+    this.fieldGroup.add(ringLow, ringHigh, wall);
+    this.fieldGroup.visible = false;
+    this.root.add(this.fieldGroup);
   }
 
   // 收服概率最高 = 虚弱优先,其次血量最少
@@ -111,33 +130,16 @@ export class Hunter extends Creature {
 
   // ---- 施放结界:近鬼锁鬼为圆心,无鬼在自己脚下空放(纯视觉) ----
   castField() {
-    const ctx = this.ctx;
-    this.dismissField(true);
     const target = this.findBarrierTarget();
     const center = (target ? target.pos : this.pos).clone().setY(0);
-
-    const group = new THREE.Group();
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x2ee8ff, transparent: true, opacity: 0.9, depthWrite: false,
-    });
-    const wallMat = new THREE.MeshBasicMaterial({
-      color: 0x2ee8ff, transparent: true, opacity: 0.16, depthWrite: false,
-      side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-    });
-    const ringLow = new THREE.Mesh(this.fieldRingGeo, ringMat);
-    ringLow.rotation.x = Math.PI / 2; ringLow.position.y = 0.25;
-    const ringHigh = new THREE.Mesh(this.fieldRingGeo, ringMat);
-    ringHigh.rotation.x = Math.PI / 2; ringHigh.position.y = 2.9;
-    ringHigh.scale.setScalar(0.85);
-    const wall = new THREE.Mesh(this.fieldWallGeo, wallMat);
-    wall.position.y = 1.5;
-    group.add(ringLow, ringHigh, wall);
-    group.position.copy(center);
-    group.scale.set(0.01, 1, 0.01);
-    ctx.three.scene.add(group);
-
+    this.fieldGroup.position.copy(center);
+    this.fieldGroup.scale.set(0.01, 1, 0.01);
+    this.fieldGroup.visible = true;
+    this.fieldRingMat.color.setHex(0x2ee8ff);
+    this.fieldRingMat.opacity = 0.9;
+    this.fieldWallMat.color.setHex(0x2ee8ff);
     this.field = {
-      group, ringMat, wallMat, center, target,
+      center, target,
       t: 0,
       need: target ? (target.weakened ? 1.0 : 1.4 + target.hpRatio() * 4.5) : 0.9,
       fading: 0,
@@ -149,8 +151,7 @@ export class Hunter extends Creature {
     if (!f) return;
     this.ctx.ui.captureRing(null);
     if (instant) {
-      this.ctx.three.scene.remove(f.group);
-      f.ringMat.dispose(); f.wallMat.dispose();
+      this.fieldGroup.visible = false;
       this.field = null;
     } else {
       f.fading = 0.35;
@@ -167,14 +168,14 @@ export class Hunter extends Creature {
     // 展开动画:缓出弹开
     const grow = Math.min(f.t * 3.2, 1);
     const s = FIELD_R * (1 - Math.pow(1 - grow, 3));
-    f.group.scale.set(Math.max(s, 0.01), 1, Math.max(s, 0.01));
-    f.group.rotation.y += dt * 1.4;
-    f.wallMat.opacity = (0.13 + Math.sin(ctx.time * 9) * 0.05) * (f.fading > 0 ? f.fading / 0.35 : 1);
+    this.fieldGroup.scale.set(Math.max(s, 0.01), 1, Math.max(s, 0.01));
+    this.fieldGroup.rotation.y += dt * 1.4;
+    this.fieldWallMat.opacity = (0.13 + Math.sin(ctx.time * 9) * 0.05) * (f.fading > 0 ? f.fading / 0.35 : 1);
 
     // 淡出中
     if (f.fading > 0) {
       f.fading -= dt;
-      f.ringMat.opacity = 0.9 * Math.max(f.fading / 0.35, 0);
+      this.fieldRingMat.opacity = 0.9 * Math.max(f.fading / 0.35, 0);
       if (f.fading <= 0) this.dismissField(true);
       return;
     }
@@ -191,8 +192,8 @@ export class Hunter extends Creature {
       ctx.ui.captureRing(ctx, tg.pos, prog);
       // 快收满时法阵转金
       const gold = prog > 0.75;
-      f.ringMat.color.setHex(gold ? 0xffd75e : 0x2ee8ff);
-      f.wallMat.color.setHex(gold ? 0xffd75e : 0x2ee8ff);
+      this.fieldRingMat.color.setHex(gold ? 0xffd75e : 0x2ee8ff);
+      this.fieldWallMat.color.setHex(gold ? 0xffd75e : 0x2ee8ff);
       if (f.t >= f.need) {
         const t = f.target;
         this.dismissField(true);
