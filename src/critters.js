@@ -3,8 +3,8 @@ import { rand, damp } from './util.js';
 import { spawnDebris } from './props.js';
 
 // ============================================================================
-// 村民:村庄里逃窜的中立生物(原作"孤魂"的转世)
-// 猎人误杀会扣分;纸傀儡会魅化他们当自爆仆从(拿村民当武器,恶毒)
+// 市民:深夜街区里逃窜的中立生物(原作"孤魂"的转世)
+// 猎鬼人误杀会扣分;纸傀儡会摄魂他们当自爆傀儡(拿市民当武器,恶毒)
 // ============================================================================
 
 const COUNT = 16;
@@ -15,16 +15,25 @@ export class Critters {
     this.list = [];
     const geoBody = new THREE.SphereGeometry(0.3, 8, 6);
     const geoHead = new THREE.SphereGeometry(0.18, 8, 6);
-    const matN = new THREE.MeshStandardMaterial({ color: 0xf2f2ea, roughness: 0.8 });
+    const geoVisor = new THREE.BoxGeometry(0.24, 0.06, 0.08);
+    const suitColors = [0x3a3f52, 0x4a3a52, 0x2e4448, 0x50423a];
+    const visorColors = [0x00e5ff, 0xff2d95, 0x7cffb0, 0xffd75e];
 
     for (let i = 0; i < COUNT; i++) {
       const g = new THREE.Group();
+      const matN = new THREE.MeshStandardMaterial({
+        color: suitColors[i % suitColors.length], roughness: 0.7, metalness: 0.2,
+      });
       const body = new THREE.Mesh(geoBody, matN);
       body.position.y = 0.35;
       const head = new THREE.Mesh(geoHead, matN);
       head.position.y = 0.75;
+      const visor = new THREE.Mesh(geoVisor, new THREE.MeshStandardMaterial({
+        color: 0x0a0a12, emissive: visorColors[i % visorColors.length], emissiveIntensity: 1.0,
+      }));
+      visor.position.set(0, 0.76, -0.14);
       body.castShadow = head.castShadow = true;
-      g.add(body, head);
+      g.add(body, head, visor);
       const a = rand(Math.PI * 2), d = rand(15, 92);
       g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
       ctx.three.scene.add(g);
@@ -100,10 +109,10 @@ export class Critters {
     if (!c.alive) return;
     c.alive = false;
     c.mesh.visible = false;
-    spawnDebris(ctx, c.pos.clone().setY(0.5), 0xf2f2ea, 2, src);
-    // 猎人误杀村民:扣分(火烧连营时要小心村民!)
+    spawnDebris(ctx, c.pos.clone().setY(0.5), 0x8a8fa2, 2, src);
+    // 猎鬼人误杀市民:扣分(纵火连营时要小心市民!)
     if (src && src.owner && src.owner.isPlayer && src.owner.alive) {
-      ctx.score.penalty(ctx, src.owner, PENALTY, '误杀村民', c.pos);
+      ctx.score.penalty(ctx, src.owner, PENALTY, '误杀市民', c.pos);
     }
   }
 

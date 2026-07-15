@@ -10,16 +10,16 @@ import { rand, lerp, damp } from './util.js';
 const BLOOD_MOON_LEFT = 60; // 剩余多少秒时触发
 
 const NORMAL = {
-  bg: new THREE.Color(0x6f9fd8),
-  fogNear: 70, fogFar: 280,
-  hemiSky: new THREE.Color(0xbdd6f2), hemiGround: new THREE.Color(0x3d5c33),
-  sunColor: new THREE.Color(0xfff2dd), sunI: 1.6,
+  bg: new THREE.Color(0xd9ae87),
+  fogNear: 70, fogFar: 260,
+  hemiSky: new THREE.Color(0xffd9ae), hemiGround: new THREE.Color(0x7a685a),
+  sunColor: new THREE.Color(0xffb26a), sunI: 1.35,
 };
 const RED = {
-  bg: new THREE.Color(0x7a1208),
-  fogNear: 30, fogFar: 150,
-  hemiSky: new THREE.Color(0xc03018), hemiGround: new THREE.Color(0x401410),
-  sunColor: new THREE.Color(0xff6644), sunI: 1.1,
+  bg: new THREE.Color(0x5a100a),
+  fogNear: 30, fogFar: 140,
+  hemiSky: new THREE.Color(0xb03020), hemiGround: new THREE.Color(0x38120c),
+  sunColor: new THREE.Color(0xff5540), sunI: 0.9,
 };
 
 export class EventsSystem {

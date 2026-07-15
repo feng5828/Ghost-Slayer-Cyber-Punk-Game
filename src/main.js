@@ -152,12 +152,12 @@ function startMatch(ui, config) {
     const sh = ctx.shake * 0.6;
     three.camera.position.set(
       ctx.camTarget.x + (Math.random() - 0.5) * sh,
-      24 + (Math.random() - 0.5) * sh,
-      ctx.camTarget.z + 16 + (Math.random() - 0.5) * sh
+      17 + (Math.random() - 0.5) * sh,
+      ctx.camTarget.z + 11.5 + (Math.random() - 0.5) * sh
     );
     three.camera.lookAt(ctx.camTarget.x, 0, ctx.camTarget.z);
 
-    three.renderer.render(three.scene, three.camera);
+    three.composer.render();
     requestAnimationFrame(frame);
   }
 

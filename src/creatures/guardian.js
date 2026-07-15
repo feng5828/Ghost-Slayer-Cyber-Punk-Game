@@ -120,7 +120,7 @@ export class Guardian extends Creature {
         const cr = ctx.critters.charmNear(input.aim, this, 2.5);
         if (cr) {
           this._critterCd = ctx.time + 1.0;
-          if (this.isPlayer) ctx.ui.popup(ctx, '摄魂了村民', cr.pos, 0);
+          if (this.isPlayer) ctx.ui.popup(ctx, '摄魂了市民', cr.pos, 0);
         }
       }
       if (cand !== this.charmTarget) { this.charmTarget = cand; this.charmProgress = 0; }

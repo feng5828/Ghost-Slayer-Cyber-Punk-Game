@@ -1,4 +1,78 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { rand, pick } from './util.js';
+
+// ============================================================================
+// 新赛博中式 · 黄昏老街:石板路贴图 + 暖阳低角度打光 + 霓虹泛光(Bloom)
+// ============================================================================
+
+// 程序化石板路:暖灰石板 + 深缝 + 磨损斑驳
+function makeGroundTexture() {
+  const S = 1024;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#8e8878';
+  g.fillRect(0, 0, S, S);
+
+  // 石板(随机暖灰,错缝排列)
+  const tile = 128;
+  let row = 0;
+  for (let y = 0; y < S; y += tile) {
+    const off = (row++ % 2) * (tile / 2);
+    for (let x = -tile; x < S + tile; x += tile) {
+      g.fillStyle = pick(['#948e7d', '#8a8474', '#9c9585', '#878170', '#918a78']);
+      g.fillRect(x + off + 3, y + 3, tile - 6, tile - 6);
+    }
+  }
+  // 磨损噪点与青苔渍
+  for (let i = 0; i < 9000; i++) {
+    const mossy = Math.random() < 0.15;
+    g.fillStyle = mossy
+      ? `rgba(${rand(60, 90) | 0},${rand(90, 110) | 0},${rand(50, 70) | 0},${rand(0.05, 0.15)})`
+      : `rgba(${rand(40, 90) | 0},${rand(40, 85) | 0},${rand(35, 75) | 0},${rand(0.04, 0.14)})`;
+    g.fillRect(rand(S), rand(S), rand(1, 4), rand(1, 4));
+  }
+  // 大块水渍阴影
+  for (let i = 0; i < 10; i++) {
+    g.fillStyle = `rgba(50,48,40,${rand(0.05, 0.12)})`;
+    g.beginPath();
+    g.ellipse(rand(S), rand(S), rand(30, 90), rand(20, 60), rand(Math.PI), 0, Math.PI * 2);
+    g.fill();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// 主街:更大的条石板 + 深色车辙
+function makeRoadTexture() {
+  const W = 256, H = 1024;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#7e7869';
+  g.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += 128) {
+    g.fillStyle = pick(['#847d6e', '#787263', '#8a8373']);
+    g.fillRect(4, y + 4, W - 8, 120);
+  }
+  for (let i = 0; i < 2500; i++) {
+    g.fillStyle = `rgba(${rand(40, 90) | 0},${rand(40, 85) | 0},${rand(35, 70) | 0},${rand(0.05, 0.12)})`;
+    g.fillRect(rand(W), rand(H), rand(1, 3), rand(1, 3));
+  }
+  // 两道浅车辙
+  g.fillStyle = 'rgba(45,42,36,0.18)';
+  g.fillRect(W * 0.22, 0, 26, H);
+  g.fillRect(W * 0.68, 0, 26, H);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 export function createWorld3D() {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -9,18 +83,18 @@ export function createWorld3D() {
   document.getElementById('app').appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x6f9fd8);
-  scene.fog = new THREE.Fog(0x6f9fd8, 80, 300);
+  scene.background = new THREE.Color(0xd9ae87);
+  scene.fog = new THREE.Fog(0xd9ae87, 70, 260);
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 700);
-  camera.position.set(0, 26, 18);
+  camera.position.set(0, 17, 11);
   camera.lookAt(0, 0, 0);
 
-  const hemi = new THREE.HemisphereLight(0xbdd6f2, 0x3d5c33, 0.9);
+  // 黄昏:暖色天光 + 低角度金色斜阳(长影子)
+  const hemi = new THREE.HemisphereLight(0xffd9ae, 0x7a685a, 0.85);
   scene.add(hemi);
-
-  const sun = new THREE.DirectionalLight(0xfff2dd, 1.6);
-  sun.position.set(70, 110, 50);
+  const sun = new THREE.DirectionalLight(0xffb26a, 1.35);
+  sun.position.set(95, 42, 70);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
@@ -28,37 +102,46 @@ export function createWorld3D() {
   sc.near = 10; sc.far = 350;
   scene.add(sun);
 
-  const texLoader = new THREE.TextureLoader();
-  const grassTex = texLoader.load('/textures/grass_green.png');
-  grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping;
-  grassTex.repeat.set(50, 50);
-  grassTex.colorSpace = THREE.SRGBColorSpace;
+  // 地面
+  const groundTex = makeGroundTexture();
+  groundTex.repeat.set(13, 13);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(340, 340),
-    new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1.0 })
+    new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95, metalness: 0.0 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const roadTex = texLoader.load('/textures/road_asphalt.png');
-  roadTex.wrapS = roadTex.wrapT = THREE.RepeatWrapping;
-  roadTex.repeat.set(1, 42);
-  roadTex.colorSpace = THREE.SRGBColorSpace;
+  // 主街
+  const roadTex = makeRoadTexture();
+  roadTex.repeat.set(1, 20);
   const road = new THREE.Mesh(
     new THREE.PlaneGeometry(9, 340),
-    new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.95, metalness: 0.0 })
   );
   road.rotation.x = -Math.PI / 2;
   road.position.y = 0.02;
   road.receiveShadow = true;
   scene.add(road);
 
+  // 霓虹泛光
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.42,  // strength:白天场景收敛些,霓虹微微渗光即可
+    0.4,   // radius
+    0.82   // threshold:只有高亮 emissive(霓虹/灯笼)起辉,暖阳画面不糊
+  );
+  composer.addPass(bloom);
+
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { renderer, scene, camera, sun, hemi };
+  return { renderer, scene, camera, sun, hemi, composer };
 }

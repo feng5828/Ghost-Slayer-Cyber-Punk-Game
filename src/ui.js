@@ -21,15 +21,16 @@ export class UI {
     const menu = this.el('menu');
     menu.style.display = 'flex';
     this.el('modes').innerHTML = `
-      <div style="max-width:640px;text-align:center;font-size:15px;line-height:1.9;color:#a8b0ba">
-        入夜的村庄里潜伏着三只恶鬼。你是猎魔人。<br>
-        它们不会现身 —— 但邪气会<span style="color:#ffd67a">污染周围的场景</span>。读懂信号,找到它们,斩了它们。<br>
-        3 分钟,斩得越多,分越高。单杀分值递增。火符烧掉树篱能开路,但小心村民。
+      <div style="max-width:660px;text-align:center;font-size:15px;line-height:1.9;color:#a8b0ba">
+        赛博时代,恶鬼藏进了霓虹街区。你是持牌上岗的职业猎鬼人。<br>
+        它们不会现身 —— 但邪气会<span style="color:#ffd67a">污染周围的场景</span>。读懂信号,找到它们,撞碎它们。<br>
+        <span style="color:#18e0c8">按住左键蓄力,松开向鼠标方向冲撞 —— 冲力就是你的武器,蓄满可以洞穿一栋商铺。</span><br>
+        3 分钟,斩得越多,分越高。单杀分值递增。电浆符能纵火开路,但小心市民。
       </div>`;
     this.el('cards').innerHTML = `<div class="legendbox">${SIGNAL_LEGEND}</div>`;
     const btn = this.el('startbtn');
     btn.disabled = false;
-    btn.textContent = '出 剑 斩 妖';
+    btn.textContent = '开 始 猎 鬼';
     btn.onclick = () => {
       menu.style.display = 'none';
       onStart({ mode: 'hunt' });
@@ -40,7 +41,7 @@ export class UI {
   startHud(ctx) {
     this.el('hud').style.display = 'block';
     this.el('hint').innerHTML =
-      'WASD 移动 · 鼠标瞄准<br>左键/空格 桃木剑突刺斩<br>右键 掷火符(烧出躲藏的恶鬼)';
+      'WASD 移动 · 鼠标瞄准<br>按住左键/空格蓄力,松开冲撞<br>蓄力越久冲力越大,冲力可撞碎一切<br>右键 掷电浆符(烧出躲藏的恶鬼)';
   }
 
   updateHud(ctx) {
@@ -95,6 +96,19 @@ export class UI {
     d.style.top = `${y}px`;
     this.el('popups').appendChild(d);
     d.addEventListener('animationend', () => d.remove());
+  }
+
+  // 蓄力环:跟随鼠标,青色渐满,蓄满转红
+  chargeRing(input, frac) {
+    const ring = this.el('charmring');
+    if (!input || frac <= 0.01) { ring.style.display = 'none'; return; }
+    ring.style.display = 'block';
+    ring.style.left = `${input.mouseX ?? window.innerWidth / 2}px`;
+    ring.style.top = `${input.mouseY ?? window.innerHeight / 2}px`;
+    const color = frac >= 1 ? '#ff4a3a' : '#18e0c8';
+    ring.style.borderColor = frac >= 1 ? '#ff4a3a' : '#2a6a66';
+    ring.style.background = `conic-gradient(${color} ${frac * 360}deg, transparent 0deg)`;
+    ring.style.boxShadow = frac >= 1 ? '0 0 18px #ff4a3a' : 'none';
   }
 
   // 纸傀儡魅化进度环(现在只有AI纸傀儡,保留接口)

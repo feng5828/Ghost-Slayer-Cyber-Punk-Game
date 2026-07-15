@@ -130,6 +130,13 @@ export class Village {
       }
     }
 
+    // 牌坊:横跨主街(可撞碎,倒下的柱子是大型碎片)
+    for (const az of [-44, 44]) {
+      const arch = createProp(ctx, 'arch', 0, az);
+      this.addCircle(-4, az, 0.6, arch.id);
+      this.addCircle(4, az, 0.6, arch.id);
+    }
+
     // 电灯柱:随机格子角落(带电 → 电系连锁)
     for (let i = 0; i < 12; i++) {
       const cx = randInt(0, COLS - 1), cz = randInt(0, ROWS - 1);
