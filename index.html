@@ -60,6 +60,12 @@ body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; use
   border: 3px solid #7ac8ff; display: none;
   transform: translate(-50%, -50%);
 }
+#capring {
+  position: absolute; width: 56px; height: 56px; border-radius: 50%;
+  border: 3px solid #ffd75e; display: none;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 14px rgba(255, 215, 94, 0.5);
+}
 #pulse {
   position: fixed; inset: 0; pointer-events: none; opacity: 0;
   background: radial-gradient(ellipse at center, transparent 52%, rgba(190, 28, 16, 0.6) 100%);
@@ -139,7 +145,7 @@ body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; use
   <div class="modes" id="modes"></div>
   <div class="cards" id="cards"></div>
   <button class="bigbtn" id="startbtn" disabled>开 始 猎 鬼</button>
-  <div id="menuhint" style="color:#788; font-size:13px">WASD 移动 · 按住左键/空格蓄力 · 松开向鼠标方向冲撞 · 右键 掷电浆符</div>
+  <div id="menuhint" style="color:#788; font-size:13px">WASD 移动 · 左键蓄力冲撞 · 右键按住 结界收服 · E 掷电浆符</div>
 </div>
 
 <div id="end" class="screen">

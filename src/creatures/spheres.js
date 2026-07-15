@@ -63,7 +63,7 @@ export class Spheres extends Creature {
   }
 
   takeDamage(n, src) {
-    if (!this.alive) return;
+    if (!this.alive || this.weakened) return;
     this.dmgAccum += n;
     while (this.dmgAccum >= 12) {
       this.dmgAccum -= 12;
@@ -71,12 +71,22 @@ export class Spheres extends Creature {
       if (this.count >= 0 && this.balls[this.count]) {
         spawnDebris(this.ctx, this.balls[this.count].pos.clone(), 0x8fe8c4, 1, null);
       }
-      if (this.count < 5) { this.die(src); return; }
+      if (this.count < 5) { this.count = 5; this.dmgAccum = 0; this.enterWeakened(); return; }
+    }
+  }
+
+  restoreFull() {
+    this.count = START_COUNT;
+    this.dmgAccum = 0;
+    this.growth = 0;
+    for (let i = 0; i < this.count; i++) {
+      this.balls[i].pos.set(this.pos.x + rand(-2, 2), rand(0.5, 3), this.pos.z + rand(-2, 2));
     }
   }
 
   update(dt, input) {
     if (!this.alive) return;
+    if (this.updateWeakened(dt)) return;
     const ctx = this.ctx;
 
     // 阵型切换

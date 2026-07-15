@@ -23,9 +23,9 @@ export class UI {
     this.el('modes').innerHTML = `
       <div style="max-width:660px;text-align:center;font-size:15px;line-height:1.9;color:#a8b0ba">
         赛博时代,恶鬼藏进了霓虹街区。你是持牌上岗的职业猎鬼人。<br>
-        它们不会现身 —— 但邪气会<span style="color:#ffd67a">污染周围的场景</span>。读懂信号,找到它们,撞碎它们。<br>
-        <span style="color:#18e0c8">按住左键蓄力,松开向鼠标方向冲撞 —— 冲力就是你的武器,蓄满可以洞穿一栋商铺。</span><br>
-        3 分钟,斩得越多,分越高。单杀分值递增。电浆符能纵火开路,但小心市民。
+        它们不会现身 —— 但邪气会<span style="color:#ffd67a">污染周围的场景</span>。读懂信号,找到它们。<br>
+        <span style="color:#18e0c8">蓄力冲撞把鬼打到虚弱,再按住右键展开结界收服 —— 只有收进结界才算数。</span><br>
+        结界消耗灵力,灵力靠破坏场景获取:拆得越狠,收得越多。3 分钟,收服分递增。E 电浆符纵火驱鬼,小心市民。
       </div>`;
     this.el('cards').innerHTML = `<div class="legendbox">${SIGNAL_LEGEND}</div>`;
     const btn = this.el('startbtn');
@@ -41,7 +41,7 @@ export class UI {
   startHud(ctx) {
     this.el('hud').style.display = 'block';
     this.el('hint').innerHTML =
-      'WASD 移动 · 鼠标瞄准<br>按住左键/空格蓄力,松开冲撞<br>蓄力越久冲力越大,冲力可撞碎一切<br>右键 掷电浆符(烧出躲藏的恶鬼)';
+      'WASD 移动 · 按住左键/空格蓄力,松开冲撞<br>把鬼打到虚弱,<span style="color:#ffd75e">按住右键展开结界收服</span>(耗30灵力)<br>破坏场景获取灵力 · E 掷电浆符纵火驱鬼';
   }
 
   updateHud(ctx) {
@@ -54,17 +54,32 @@ export class UI {
     const p = ctx.player;
     this.el('scoreboard').innerHTML =
       `<div class="row me" style="font-size:24px">${p.score} 分</div>` +
-      `<div class="row">斩妖 ${p.stats.kills} 只</div>` +
+      `<div class="row">收服 ${p.stats.kills} 只</div>` +
       (p.stats.maxChain > 0 ? `<div class="row" style="color:#ffab4a">最深连锁 ${p.stats.maxChain} 层</div>` : '');
 
     const hp = this.el('hpbar');
     if (p.alive) {
-      hp.querySelector('.val').textContent = p.hpText();
+      const spirit = Math.round(p.spirit ?? 0);
+      const sColor = spirit >= 30 ? '#7ac8ff' : '#ff8a6a';
+      hp.querySelector('.val').innerHTML =
+        `${p.hpText()}<br><span style="color:${sColor}">灵力 ${spirit}</span><span style="color:#667;font-size:14px"> / 100</span>`;
       hp.style.color = p.hpRatio() < 0.3 ? '#ff5040' : '#e8e8e8';
     } else {
       hp.querySelector('.val').textContent = '你被恶鬼所杀';
       hp.style.color = '#888';
     }
+  }
+
+  // 收服进度环:显示在目标鬼头顶
+  captureRing(ctx, worldPos, progress) {
+    const ring = this.el('capring');
+    if (!ctx || !worldPos) { ring.style.display = 'none'; return; }
+    const v = new THREE.Vector3(worldPos.x, (worldPos.y || 0) + 3, worldPos.z).project(ctx.three.camera);
+    if (v.z > 1) { ring.style.display = 'none'; return; }
+    ring.style.display = 'block';
+    ring.style.left = `${(v.x * 0.5 + 0.5) * window.innerWidth}px`;
+    ring.style.top = `${(-v.y * 0.5 + 0.5) * window.innerHeight}px`;
+    ring.style.background = `conic-gradient(#ffd75e ${Math.min(progress, 1) * 360}deg, transparent 0deg)`;
   }
 
   banner(text) {
@@ -126,7 +141,7 @@ export class UI {
     this.el('endtitle').textContent = reason === 'dead' ? '你被恶鬼所杀' : '天亮了';
     this.el('rankings').innerHTML =
       `<div class="winner">${p.score} 分</div>` +
-      `<div>斩妖 ${p.stats.kills} 只</div>`;
+      `<div>收服 ${p.stats.kills} 只恶鬼</div>`;
     this.el('endsub').textContent =
       `破坏 ${p.stats.destroyed} 个物件 · 最深连锁 ${p.stats.maxChain} 层`;
 

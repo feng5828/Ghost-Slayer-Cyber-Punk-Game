@@ -27,6 +27,8 @@ export class HiderAI {
   update(dt) {
     const ctx = this.ctx, c = this.c, v = ctx.village;
     const player = ctx.player;
+    // 虚弱中:瘫在原地等待被收服或逃逸
+    if (c.weakened) return this.pack(0, 0, false, false, false, false);
     this.navT -= dt;
     this.pulse -= dt;
 

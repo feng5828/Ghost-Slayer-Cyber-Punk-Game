@@ -28,6 +28,11 @@ const TORCH_CD = 4.0;
 const TORCH_RANGE = 22;
 const REGEN_DELAY = 5.0;
 const REGEN_RATE = 5;
+// 结界收服
+const BARRIER_RADIUS = 7;     // 结界半径:目标须在此范围内
+const BARRIER_COST = 30;      // 收服消耗灵力
+const SPIRIT_MAX = 100;
+const SPIRIT_REGEN = 1.2;     // 灵力被动回复/秒(主要靠破坏获取)
 
 export class Hunter extends Creature {
   constructor(ctx, opts) {
@@ -44,6 +49,8 @@ export class Hunter extends Creature {
     this.lastHurtAt = -99;
     this.torches = [];
     this.facing = 0;
+    this.spirit = 40;
+    this.barrier = null;   // {target, t, need}
 
     // 造型:深色义体 + 青色面甲光条 + 背后符印发光 + 悬浮肩灯
     const suitMat = TOON({ color: 0x161a28, metalness: 0.55, roughness: 0.4 });
@@ -81,6 +88,36 @@ export class Hunter extends Creature {
     this.torchMat = TOON({
       color: 0x10141c, emissive: 0x18e0c8, emissiveIntensity: 1.1,
     });
+
+    // 结界法阵:双环
+    this.barrierMat = new THREE.MeshBasicMaterial({
+      color: 0x18e0c8, transparent: true, opacity: 0.75, depthWrite: false,
+    });
+    this.barrierRing = new THREE.Mesh(new THREE.TorusGeometry(BARRIER_RADIUS, 0.12, 8, 48), this.barrierMat);
+    this.barrierRing.rotation.x = Math.PI / 2;
+    this.barrierRing.visible = false;
+    this.barrierRing2 = new THREE.Mesh(new THREE.TorusGeometry(BARRIER_RADIUS * 0.7, 0.07, 8, 40), this.barrierMat);
+    this.barrierRing2.rotation.x = Math.PI / 2;
+    this.barrierRing2.visible = false;
+    this.root.add(this.barrierRing, this.barrierRing2);
+  }
+
+  findBarrierTarget() {
+    let best = null, bestScore = -1;
+    for (const c of this.ctx.creatures) {
+      if (c === this || !c.alive) continue;
+      if (c.pos.distanceTo(this.pos) > BARRIER_RADIUS) continue;
+      const s = c.weakened ? 10 : 1 - c.hpRatio(); // 优先虚弱,其次血最少的
+      if (s > bestScore) { bestScore = s; best = c; }
+    }
+    return best;
+  }
+
+  cancelBarrier() {
+    this.barrier = null;
+    this.barrierRing.visible = false;
+    this.barrierRing2.visible = false;
+    this.ctx.ui.captureRing(null);
   }
 
   hpText() { return `生命 ${Math.ceil(this.hp)}`; }
@@ -92,6 +129,11 @@ export class Hunter extends Creature {
     this.hp -= n;
     this.lastHurtAt = this.ctx.time;
     this.ctx.ui.hurtFlash();
+    // 受击打断结界引导
+    if (this.barrier) {
+      this.cancelBarrier();
+      this.ctx.ui.popup(this.ctx, '结界被打断!', this.pos, 'bad');
+    }
     if (this.hp <= 0) this.die(src);
   }
 
@@ -102,9 +144,53 @@ export class Hunter extends Creature {
     const ctx = this.ctx;
     this.torchCd -= dt;
 
-    // 回血
+    // 回血 / 灵力被动回复
     if (ctx.time - this.lastHurtAt > REGEN_DELAY && this.hp < MAX_HP) {
       this.hp = Math.min(this.hp + REGEN_RATE * dt, MAX_HP);
+    }
+    this.spirit = Math.min(this.spirit + SPIRIT_REGEN * dt, SPIRIT_MAX);
+
+    // ---- 结界收服(右键按住引导)----
+    // 虚弱的鬼 1 秒收服;满血强收要引导数秒,期间被打就断
+    if (input.secondaryHeld && this.stun <= 0 && this.dashT <= 0) {
+      const target = this.findBarrierTarget();
+      if (!target) {
+        this.cancelBarrier();
+      } else if (this.spirit < BARRIER_COST) {
+        this.cancelBarrier();
+        if ((this._spiritWarnCd || 0) < ctx.time) {
+          this._spiritWarnCd = ctx.time + 1.5;
+          ctx.ui.popup(ctx, `灵力不足(需${BARRIER_COST},破坏场景获取)`, this.pos, 'bad');
+        }
+      } else {
+        if (!this.barrier || this.barrier.target !== target) {
+          this.barrier = {
+            target, t: 0,
+            need: target.weakened ? 1.0 : 1.4 + target.hpRatio() * 4.5,
+          };
+        }
+        this.barrier.t += dt;
+        this.charging = false;
+        this.chargeT = 0;
+        // 法阵视觉:双环旋转,进度越满越金
+        const prog = this.barrier.t / this.barrier.need;
+        this.barrierRing.visible = this.barrierRing2.visible = true;
+        this.barrierRing.position.set(this.pos.x, 0.35, this.pos.z);
+        this.barrierRing2.position.set(this.pos.x, 0.55, this.pos.z);
+        this.barrierRing.rotation.z += dt * 1.2;
+        this.barrierRing2.rotation.z -= dt * 2.0;
+        this.barrierMat.color.setHex(prog > 0.99 ? 0xffd75e : (prog > 0.6 ? 0xa0e8a0 : 0x18e0c8));
+        ctx.ui.captureRing(ctx, this.barrier.target.pos, prog);
+
+        if (this.barrier.t >= this.barrier.need) {
+          this.spirit -= BARRIER_COST;
+          const t = this.barrier.target;
+          this.cancelBarrier();
+          t.capture(this);
+        }
+      }
+    } else if (this.barrier) {
+      this.cancelBarrier();
     }
 
     // ---- 蓄力 → 松开冲撞 ----
@@ -152,13 +238,13 @@ export class Hunter extends Creature {
         addFlash(ctx, this.pos.clone().setY(1.0), 1.2, 0x18e0c8);
       }
     } else {
-      const slow = this.charging ? CHARGE_MOVE_MULT : 1;
+      const slow = this.barrier ? 0.3 : (this.charging ? CHARGE_MOVE_MULT : 1);
       this.moveCommon(dt, input, SPEED * slow, 9);
     }
     this.collide();
 
-    // ---- 掷电浆符 ----
-    if (input.secondary && this.torchCd <= 0 && this.stun <= 0 && input.aim) {
+    // ---- 掷电浆符(E 键)----
+    if (input.tertiary && this.torchCd <= 0 && this.stun <= 0 && input.aim) {
       this.torchCd = TORCH_CD;
       const to = input.aim.clone().setY(0);
       const d = to.distanceTo(this.pos);

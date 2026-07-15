@@ -71,13 +71,21 @@ export class Guardian extends Creature {
   hittable() { return [{ pos: this.pos, r: 0.9 }]; }
 
   takeDamage(n, src) {
-    if (!this.alive) return;
+    if (!this.alive || this.weakened) return;
     this.hp -= n;
     if (this.hp <= 0) {
-      this.releaseAll();
-      this.ray.visible = false;
-      this.die(src);
+      this.hp = 0;
+      this.enterWeakened();
     }
+  }
+
+  onWeakened() {
+    this.releaseAll();
+    this.ray.visible = false;
+  }
+
+  restoreFull() {
+    this.hp = MAX_HP;
   }
 
   onDestroyedProp() {
@@ -97,6 +105,7 @@ export class Guardian extends Creature {
 
   update(dt, input) {
     if (!this.alive) return;
+    if (this.updateWeakened(dt)) return;
     const ctx = this.ctx;
     this.moveCommon(dt, input, 21, 8);
     this.collide();

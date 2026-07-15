@@ -94,17 +94,26 @@ export class Dragon extends Creature {
   }
 
   takeDamage(n, src) {
-    if (!this.alive) return;
+    if (!this.alive || this.weakened) return;
     this.dmgAccum += n;
     while (this.dmgAccum >= 25) {
       this.dmgAccum -= 25;
       this.removeSegment();
-      if (this.segs.length <= 3) { this.die(src); return; }
+      if (this.segs.length <= 3) { this.dmgAccum = 0; this.enterWeakened(); return; }
     }
+  }
+
+  restoreFull() {
+    while (this.segs.length < SEG_START) this.addSegment();
+    this.dmgAccum = 0;
+    this.growth = 0;
+    for (const s of this.segs) s.pos.set(this.pos.x, 1, this.pos.z);
+    this.prevHead.copy(this.pos);
   }
 
   update(dt, input) {
     if (!this.alive) return;
+    if (this.updateWeakened(dt)) return;
     const ctx = this.ctx;
 
     // 冲刺

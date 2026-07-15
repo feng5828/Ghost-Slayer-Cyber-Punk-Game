@@ -19,6 +19,7 @@ export class Input {
       this.keys.add(e.code);
       if (e.code === 'Space') { this._primaryPress = true; this.primaryHeld = true; e.preventDefault(); }
       if (e.code === 'ShiftLeft') { this._secondaryPress = true; this.secondaryHeld = true; }
+      if (e.code === 'KeyE') this._tertiaryPress = true;
     });
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.code);
@@ -64,9 +65,11 @@ export class Input {
       primaryHeld: this.primaryHeld,
       secondary: this._secondaryPress,
       secondaryHeld: this.secondaryHeld,
+      tertiary: this._tertiaryPress, // E 键:电浆符
     };
     this._primaryPress = false;
     this._secondaryPress = false;
+    this._tertiaryPress = false;
     return out;
   }
 }
