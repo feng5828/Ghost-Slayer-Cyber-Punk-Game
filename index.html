@@ -60,6 +60,21 @@ body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; use
   border: 3px solid #7ac8ff; display: none;
   transform: translate(-50%, -50%);
 }
+#pulse {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 52%, rgba(190, 28, 16, 0.6) 100%);
+  transition: opacity .08s linear; z-index: 5;
+}
+#hurt {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
+  background: rgba(200, 20, 10, 0.35);
+  transition: opacity .25s ease-out; z-index: 6;
+}
+.popup.cbad { color: #ff6a6a; font-size: 18px; }
+.legendbox {
+  border: 2px solid #444; background: #12121c; padding: 16px 26px;
+  font-size: 15px; line-height: 2.1; box-shadow: 4px 4px 0 rgba(0,0,0,.5);
+}
 
 /* ---------- 菜单 / 结算 ---------- */
 .screen {
@@ -105,6 +120,8 @@ body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; use
 </head>
 <body>
 <div id="app"></div>
+<div id="pulse"></div>
+<div id="hurt"></div>
 
 <div id="hud">
   <div id="timer">3:00</div>
@@ -117,12 +134,12 @@ body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; use
 </div>
 
 <div id="menu" class="screen">
-  <h1>草原大崩坏</h1>
-  <h2>红天空降临的三分钟 —— 拆光一切,或者互相撕碎</h2>
+  <h1>村庄猎杀夜</h1>
+  <h2>Grassland Mayhem: 超自然生物猎杀者</h2>
   <div class="modes" id="modes"></div>
   <div class="cards" id="cards"></div>
-  <button class="bigbtn" id="startbtn" disabled>开 战</button>
-  <div id="menuhint" style="color:#788; font-size:13px">选择模式和生物 · WASD 移动 · 鼠标瞄准 · 左键主技能 · 右键副技能</div>
+  <button class="bigbtn" id="startbtn" disabled>开 始 猎 杀</button>
+  <div id="menuhint" style="color:#788; font-size:13px">WASD 移动 · 鼠标瞄准 · 左键/空格 突刺斩击 · 右键 掷火把</div>
 </div>
 
 <div id="end" class="screen">

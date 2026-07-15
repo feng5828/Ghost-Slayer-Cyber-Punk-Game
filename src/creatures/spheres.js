@@ -98,6 +98,7 @@ export class Spheres extends Creature {
     } else {
       this.moveCommon(dt, input, this.mode === 'ring' ? 8 : 13, 5);
     }
+    this.collide();
     this.pos.y = 0;
 
     // 电击:带电球群反而更危险(涌现 buff),但持续自损

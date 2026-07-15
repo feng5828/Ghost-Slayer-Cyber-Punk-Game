@@ -123,6 +123,8 @@ export class Dragon extends Creature {
       if (this.vel.lengthSq() > 1) this.heading.copy(this.vel).normalize();
     }
 
+    this.collide();
+
     // 头部速度(用于伤害判定)
     const headSpeed = this.prevHead.distanceTo(this.pos) / Math.max(dt, 1e-4);
     this.prevHead.copy(this.pos);

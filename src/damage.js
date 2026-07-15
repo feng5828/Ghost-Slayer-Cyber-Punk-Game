@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { spawnDebris, propPos, cleanupProp } from './props.js';
-import { ignite } from './fire.js';
+import { ignite, douse } from './fire.js';
 
 // ============================================================================
 // 伤害与破坏:一切破坏都带 src = {owner, chain}
@@ -42,6 +42,11 @@ export function destroyProp(ctx, prop, src) {
   // 属性驱动的连锁反应 —— 不写死结果,只触发系统
   if (def.explosive) explode(ctx, pos, 8, 60, nextSrc);
   if (def.powered) spark(ctx, pos, nextSrc);
+  if (def.douses) {
+    // 水井炸开:浇灭周围的火
+    addFlash(ctx, pos, 8, 0x5a9ad8);
+    for (const q of nearbyProps(ctx, pos, 9)) douse(ctx, q);
+  }
   if (prop.state.burning) {
     // 燃烧中被摧毁:火种溅到附近可燃物
     for (const q of nearbyProps(ctx, pos, 3.5)) {
@@ -50,6 +55,7 @@ export function destroyProp(ctx, prop, src) {
   }
 
   cleanupProp(ctx, prop);
+  if (ctx.village) ctx.village.onDestroyed(prop); // 迷宫墙被拆 → 更新碰撞与导航
   const idx = ctx.props.indexOf(prop);
   if (idx >= 0) ctx.props.splice(idx, 1);
 }

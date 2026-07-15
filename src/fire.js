@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { propPos } from './props.js';
-import { damageProp, nearbyProps } from './damage.js';
+import { damageProp, nearbyProps, hitCreaturesAt } from './damage.js';
 import { rand } from './util.js';
 
 // ============================================================================
@@ -69,8 +69,9 @@ export function updateFire(ctx, dt) {
           ignite(ctx, q, { owner: b.owner, chain: b.chain + 1 });
         }
       }
-      // 烧到小人
+      // 烧到村民和生物(火把把躲藏的生物逼出来的关键)
       ctx.critters.hitAt(ctx, pos, 2.2, { owner: b.owner, chain: b.chain + 1 });
+      hitCreaturesAt(ctx, pos, 2.6, 10, { owner: b.owner, chain: b.chain + 1 }, null);
     }
 
     // 火焰贴着道具跳动

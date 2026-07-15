@@ -3,12 +3,12 @@ import { rand, damp } from './util.js';
 import { spawnDebris } from './props.js';
 
 // ============================================================================
-// 孤魂小人:草原上逃窜的中立生物(致敬原作"孤魂"成就)
-// 会被一切东西杀死(计分),可被守护者魅化成自爆仆从
+// 村民:村庄里逃窜的中立生物(原作"孤魂"的转世)
+// 猎人误杀会扣分;守护者会魅化他们当自爆仆从(拿村民当武器,恶毒)
 // ============================================================================
 
-const COUNT = 14;
-const POINTS = 40;
+const COUNT = 16;
+const PENALTY = 100;
 
 export class Critters {
   constructor(ctx) {
@@ -25,7 +25,7 @@ export class Critters {
       head.position.y = 0.75;
       body.castShadow = head.castShadow = true;
       g.add(body, head);
-      const a = rand(Math.PI * 2), d = rand(20, 110);
+      const a = rand(Math.PI * 2), d = rand(15, 92);
       g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
       ctx.three.scene.add(g);
       this.list.push({
@@ -78,7 +78,8 @@ export class Critters {
 
       c.pos.x += Math.cos(c.dir) * c.speed * dt;
       c.pos.z += Math.sin(c.dir) * c.speed * dt;
-      if (Math.hypot(c.pos.x, c.pos.z) > 140) c.dir += Math.PI;
+      if (ctx.village) ctx.village.resolveCircle(c.pos, 0.35);
+      if (Math.hypot(c.pos.x, c.pos.z) > 100) c.dir += Math.PI;
       c.mesh.rotation.y = -c.dir + Math.PI / 2;
       // 惊慌时上下蹦
       c.mesh.position.y = c.panicT > 0 || c.charmedBy ? Math.abs(Math.sin(ctx.time * 14)) * 0.25 : 0;
@@ -100,8 +101,9 @@ export class Critters {
     c.alive = false;
     c.mesh.visible = false;
     spawnDebris(ctx, c.pos.clone().setY(0.5), 0xf2f2ea, 2, src);
-    if (src && src.owner && src.owner.alive) {
-      ctx.score.award(ctx, src.owner, POINTS, src.chain, '孤魂', c.pos);
+    // 猎人误杀村民:扣分(火烧连营时要小心村民!)
+    if (src && src.owner && src.owner.isPlayer && src.owner.alive) {
+      ctx.score.penalty(ctx, src.owner, PENALTY, '误杀村民', c.pos);
     }
   }
 

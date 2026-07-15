@@ -90,6 +90,7 @@ export class Guardian extends Creature {
     if (!this.alive) return;
     const ctx = this.ctx;
     this.moveCommon(dt, input, 21, 8);
+    this.collide();
     this.pos.y = 0;
 
     // 漂浮 + 星星旋转
@@ -214,6 +215,9 @@ export class Guardian extends Creature {
   }
 
   nearestEnemy() {
+    // 猎杀模式:守护者的敌人永远是猎人
+    const p = this.ctx.player;
+    if (p && p.alive && p !== this) return p;
     let best = null, bd = Infinity;
     for (const c of this.ctx.creatures) {
       if (c === this || !c.alive) continue;

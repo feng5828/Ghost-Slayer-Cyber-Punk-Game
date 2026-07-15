@@ -1,19 +1,24 @@
 import * as THREE from 'three';
-import { rand, randInt, pick, dist2d } from './util.js';
+import { rand } from './util.js';
 import { damageProp, hitCreaturesAt } from './damage.js';
 
 // ============================================================================
-// 道具定义：涌现的基础 —— 每个道具只有几个共享属性
-// flammable 可燃 / conductive 导电 / explosive 爆炸 / powered 带电 / charmable 可魅化
+// 道具定义:涌现的基础 —— 每个道具只有几个共享属性
+// flammable 可燃 / conductive 导电 / explosive 爆炸 / powered 带电
+// charmable 可魅化 / douses 摧毁时浇灭周围火焰
 // ============================================================================
 export const PROP_DEFS = {
   hay:     { name: '干草垛', hp: 30, points: 20, flammable: true, charmable: true, color: 0xd9b44a },
   fence:   { name: '木栅栏', hp: 20, points: 15, flammable: true, charmable: true, color: 0x8a6a42 },
-  pole:    { name: '电线塔', hp: 80, points: 60, powered: true, conductive: true, color: 0x6b5030 },
-  tank:    { name: '油罐',   hp: 40, points: 50, explosive: true, flammable: true, charmable: true, conductive: true, color: 0xa33327 },
-  rock:    { name: '巨石',   hp: 70, points: 25, charmable: true, color: 0x8d9096 },
-  grass:   { name: '草丛',   hp: 6,  points: 5,  flammable: true, noBody: true, color: 0x4d8a3a },
+  pole:    { name: '电灯柱', hp: 60, points: 50, powered: true, conductive: true, color: 0x6b5030 },
+  tank:    { name: '火药桶', hp: 35, points: 50, explosive: true, flammable: true, charmable: true, conductive: true, color: 0x7a4a2c },
+  rock:    { name: '石堆',   hp: 70, points: 25, charmable: true, color: 0x8d9096 },
+  grass:   { name: '花草',   hp: 6,  points: 5,  flammable: true, noBody: true, color: 0x4d8a3a },
   balloon: { name: '热气球', hp: 400, points: 500, flammable: true, color: 0xd8503c },
+  hedge:   { name: '树篱',   hp: 25, points: 10, flammable: true, color: 0x3e6b2f },
+  house:   { name: '木屋',   hp: 150, points: 80, flammable: true, color: 0x9c7a4e },
+  cart:    { name: '木车',   hp: 35, points: 25, flammable: true, charmable: true, color: 0x8a6a42 },
+  well:    { name: '水井',   hp: 60, points: 30, douses: true, color: 0x9aa0a6 },
 };
 
 let _id = 0;
@@ -29,7 +34,7 @@ function mat(color, opts = {}) {
 // ---------------------------------------------------------------------------
 // 各类道具的网格 + 物理体
 // ---------------------------------------------------------------------------
-function buildMeshAndBody(ctx, type, x, z) {
+function buildMeshAndBody(ctx, type, x, z, opts = {}) {
   const { RAPIER, world } = ctx.phys;
   const def = PROP_DEFS[type];
   const group = new THREE.Group();
@@ -38,6 +43,8 @@ function buildMeshAndBody(ctx, type, x, z) {
   const dyn = (px, py, pz, damping = 0.4) =>
     world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(px, py, pz)
       .setLinearDamping(damping).setAngularDamping(0.8));
+  const fixed = (px, py, pz) =>
+    world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(px, py, pz));
 
   if (type === 'hay') {
     geoCache.hay ||= new THREE.CylinderGeometry(1.0, 1.0, 1.5, 14).rotateZ(Math.PI / 2);
@@ -55,22 +62,23 @@ function buildMeshAndBody(ctx, type, x, z) {
     body.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand(Math.PI * 2)), true);
     world.createCollider(RAPIER.ColliderDesc.cuboid(1.2, 0.55, 0.08).setDensity(0.4).setFriction(0.8), body);
   } else if (type === 'pole') {
-    geoCache.pole ||= new THREE.CylinderGeometry(0.32, 0.4, 9, 8);
-    geoCache.poleBar ||= new THREE.BoxGeometry(3.2, 0.25, 0.25);
+    geoCache.pole ||= new THREE.CylinderGeometry(0.22, 0.3, 6, 8);
+    geoCache.lantern ||= new THREE.BoxGeometry(0.55, 0.55, 0.55);
     const trunk = new THREE.Mesh(geoCache.pole, mat(def.color));
-    trunk.position.y = 4.5; trunk.castShadow = true;
-    const bar = new THREE.Mesh(geoCache.poleBar, mat(0x4a3a24));
-    bar.position.y = 8.2; bar.castShadow = true;
-    group.add(trunk, bar);
-    body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, 0, z));
-    world.createCollider(RAPIER.ColliderDesc.cylinder(4.5, 0.4).setTranslation(0, 4.5, 0), body);
+    trunk.position.y = 3; trunk.castShadow = true;
+    const lantern = new THREE.Mesh(geoCache.lantern,
+      mat(0xffd75e, { emissive: 0xcc9922, emissiveIntensity: 0.9, roughness: 0.4 }));
+    lantern.position.y = 5.7;
+    group.add(trunk, lantern);
+    body = fixed(x, 0, z);
+    world.createCollider(RAPIER.ColliderDesc.cylinder(3, 0.3).setTranslation(0, 3, 0), body);
   } else if (type === 'tank') {
-    geoCache.tank ||= new THREE.CylinderGeometry(0.9, 0.9, 1.9, 14);
-    const m = new THREE.Mesh(geoCache.tank, mat(def.color, { metalness: 0.35, roughness: 0.5 }));
+    geoCache.tank ||= new THREE.CylinderGeometry(0.7, 0.7, 1.3, 12);
+    const m = new THREE.Mesh(geoCache.tank, mat(def.color, { roughness: 0.7 }));
     m.castShadow = true;
     group.add(m);
-    body = dyn(x, 1.0, z, 0.5);
-    world.createCollider(RAPIER.ColliderDesc.cylinder(0.95, 0.9).setDensity(0.8).setFriction(0.6), body);
+    body = dyn(x, 0.7, z, 0.5);
+    world.createCollider(RAPIER.ColliderDesc.cylinder(0.65, 0.7).setDensity(0.8).setFriction(0.6), body);
   } else if (type === 'rock') {
     geoCache.rock ||= new THREE.IcosahedronGeometry(1.35, 0);
     const m = new THREE.Mesh(geoCache.rock, mat(def.color, { roughness: 0.95 }));
@@ -80,12 +88,16 @@ function buildMeshAndBody(ctx, type, x, z) {
     world.createCollider(RAPIER.ColliderDesc.ball(1.25).setDensity(2.2).setFriction(0.9), body);
   } else if (type === 'grass') {
     geoCache.grass ||= new THREE.ConeGeometry(0.5, 1.2, 6);
+    geoCache.flower ||= new THREE.SphereGeometry(0.14, 6, 5);
     for (let i = 0; i < 3; i++) {
       const m = new THREE.Mesh(geoCache.grass, mat(def.color));
       m.position.set(rand(-0.5, 0.5), 0.55, rand(-0.5, 0.5));
       m.scale.setScalar(rand(0.7, 1.15));
       group.add(m);
     }
+    const f = new THREE.Mesh(geoCache.flower, mat(0xe0e070, { roughness: 0.6 }));
+    f.position.set(rand(-0.3, 0.3), 1.15, rand(-0.3, 0.3));
+    group.add(f);
     group.position.set(x, 0, z);
   } else if (type === 'balloon') {
     geoCache.balloonBall ||= new THREE.SphereGeometry(4.2, 20, 16);
@@ -95,9 +107,60 @@ function buildMeshAndBody(ctx, type, x, z) {
     const basket = new THREE.Mesh(geoCache.balloonBasket, mat(0x7a5c34));
     basket.position.y = 1.4; basket.castShadow = true;
     group.add(ball, basket);
-    body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, 0, z));
+    body = fixed(x, 0, z);
     world.createCollider(RAPIER.ColliderDesc.ball(4.4).setTranslation(0, 9.5, 0), body);
     world.createCollider(RAPIER.ColliderDesc.cuboid(1.1, 0.8, 1.1).setTranslation(0, 1.4, 0), body);
+  } else if (type === 'hedge') {
+    // 迷宫墙体:轴对齐,尺寸由 opts.w / opts.d 指定
+    geoCache.hedge ||= new THREE.BoxGeometry(1, 1, 1);
+    const w = opts.w || 6.8, d = opts.d || 1.2;
+    const m = new THREE.Mesh(geoCache.hedge, mat(def.color, { roughness: 1.0 }));
+    m.scale.set(w, 2.2, d);
+    m.position.y = 1.1;
+    m.castShadow = true;
+    group.add(m);
+    body = fixed(x, 0, z);
+    world.createCollider(RAPIER.ColliderDesc.cuboid(w / 2, 1.1, d / 2).setTranslation(0, 1.1, 0), body);
+  } else if (type === 'house') {
+    geoCache.houseBase ||= new THREE.BoxGeometry(6.5, 4, 6.5);
+    geoCache.houseRoof ||= new THREE.ConeGeometry(5.2, 2.8, 4);
+    const base = new THREE.Mesh(geoCache.houseBase, mat(def.color));
+    base.position.y = 2; base.castShadow = true;
+    const roof = new THREE.Mesh(geoCache.houseRoof, mat(0x7a3b2a, { roughness: 0.9 }));
+    roof.position.y = 5.4; roof.rotation.y = Math.PI / 4; roof.castShadow = true;
+    const door = new THREE.Mesh(
+      geoCache.hedge ||= new THREE.BoxGeometry(1, 1, 1),
+      mat(0x4a3020)
+    );
+    door.scale.set(1.2, 2.2, 0.1); door.position.set(0, 1.1, 3.28);
+    group.add(base, roof, door);
+    body = fixed(x, 0, z);
+    world.createCollider(RAPIER.ColliderDesc.cuboid(3.25, 2, 3.25).setTranslation(0, 2, 0), body);
+  } else if (type === 'cart') {
+    geoCache.cartBody ||= new THREE.BoxGeometry(2.4, 0.9, 1.5);
+    geoCache.cartWheel ||= new THREE.CylinderGeometry(0.5, 0.5, 0.15, 10).rotateX(Math.PI / 2);
+    const cb = new THREE.Mesh(geoCache.cartBody, mat(def.color));
+    cb.position.y = 0.1; cb.castShadow = true;
+    group.add(cb);
+    for (const [wx, wz] of [[-0.8, 0.8], [0.8, 0.8], [-0.8, -0.8], [0.8, -0.8]]) {
+      const wm = new THREE.Mesh(geoCache.cartWheel, mat(0x3a3028));
+      wm.position.set(wx, -0.3, wz);
+      group.add(wm);
+    }
+    body = dyn(x, 1.0, z, 0.3);
+    world.createCollider(RAPIER.ColliderDesc.ball(1.0).setDensity(0.6).setFriction(0.7).setRestitution(0.1), body);
+  } else if (type === 'well') {
+    geoCache.well ||= new THREE.CylinderGeometry(1.2, 1.3, 1.3, 12);
+    const m = new THREE.Mesh(geoCache.well, mat(def.color, { roughness: 0.95 }));
+    m.position.y = 0.65; m.castShadow = true;
+    const water = new THREE.Mesh(
+      geoCache.wellWater ||= new THREE.CylinderGeometry(1.0, 1.0, 0.1, 12),
+      mat(0x3a6a9a, { roughness: 0.2, metalness: 0.1 })
+    );
+    water.position.y = 1.26;
+    group.add(m, water);
+    body = fixed(x, 0, z);
+    world.createCollider(RAPIER.ColliderDesc.cylinder(0.65, 1.25).setTranslation(0, 0.65, 0), body);
   }
 
   if (body) {
@@ -107,9 +170,9 @@ function buildMeshAndBody(ctx, type, x, z) {
   return { group, body };
 }
 
-export function createProp(ctx, type, x, z) {
+export function createProp(ctx, type, x, z, opts = {}) {
   const def = PROP_DEFS[type];
-  const { group, body } = buildMeshAndBody(ctx, type, x, z);
+  const { group, body } = buildMeshAndBody(ctx, type, x, z, opts);
   ctx.three.scene.add(group);
   const prop = {
     id: ++_id, type, def, mesh: group, body, dead: false,
@@ -128,52 +191,6 @@ export function createProp(ctx, type, x, z) {
 export function propPos(prop) {
   if (prop.body) { const t = prop.body.translation(); return new THREE.Vector3(t.x, t.y, t.z); }
   return prop.mesh.position.clone();
-}
-
-// ============================================================================
-// 场地生成
-// ============================================================================
-export function buildArena(ctx) {
-  const taken = [];
-  const free = (x, z, r) => {
-    if (Math.hypot(x, z) < 10) return false;
-    for (const t of taken) if (dist2d(x, z, t.x, t.z) < r + t.r) return false;
-    return true;
-  };
-  const put = (type, x, z, r) => { taken.push({ x, z, r }); return createProp(ctx, type, x, z); };
-  const scatter = (type, count, r, minR = 14, maxR = 118) => {
-    for (let i = 0; i < count; i++) {
-      for (let tries = 0; tries < 30; tries++) {
-        const a = rand(Math.PI * 2), d = rand(minR, maxR);
-        const x = Math.cos(a) * d, z = Math.sin(a) * d;
-        if (free(x, z, r)) { put(type, x, z, r); break; }
-      }
-    }
-  };
-
-  // 热气球:场地中心地标,致敬原作
-  put('balloon', 12, -6, 7);
-
-  // 电线塔沿公路两侧排布(原作的公路)
-  for (let z = -100; z <= 100; z += 25) {
-    put('pole', z % 50 === 0 ? 7 : -7, z, 2);
-  }
-
-  // 栅栏排成行,烧起来会传火
-  for (let row = 0; row < 6; row++) {
-    const a = rand(Math.PI * 2), d = rand(25, 100);
-    const cx = Math.cos(a) * d, cz = Math.sin(a) * d;
-    const dir = rand(Math.PI);
-    for (let i = -2; i <= 2; i++) {
-      const x = cx + Math.cos(dir) * i * 2.6, z = cz + Math.sin(dir) * i * 2.6;
-      if (free(x, z, 1.5)) put('fence', x, z, 1.5);
-    }
-  }
-
-  scatter('hay', 26, 2.2);
-  scatter('tank', 9, 2.0, 20);
-  scatter('rock', 8, 2.2);
-  scatter('grass', 46, 1.2, 12, 125);
 }
 
 // ============================================================================

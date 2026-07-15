@@ -1,6 +1,8 @@
 // ============================================================================
-// 计分:直接破坏 x1,连锁破坏按深度加倍率(上限 x4)
-// 计分规则本身把玩家推向"设计混乱"
+// 计分:
+// - 破坏道具:直接 x1,连锁按深度加倍率(上限 x4)—— 拆村庄也有分,但小头
+// - 击杀生物:大头。单杀分值递增(400, 550, 700...),血月期间 ×2
+// - 误杀村民:-100
 // ============================================================================
 export class ScoreSystem {
   award(ctx, owner, base, chain, label, worldPos) {
@@ -16,8 +18,21 @@ export class ScoreSystem {
   }
 
   killBonus(ctx, owner, victim) {
-    owner.score += 300;
-    owner.stats.kills++;
-    if (owner.isPlayer) ctx.ui.popup(ctx, `击杀 ${victim.cname} +300`, victim.pos, 3);
+    if (owner.isPlayer) {
+      owner.stats.kills++;
+      let pts = 400 + (owner.stats.kills - 1) * 150;
+      if (ctx.bloodMoon) pts *= 2;
+      owner.score += pts;
+      ctx.ui.popup(ctx, `猎杀 ${victim.cname} +${pts}${ctx.bloodMoon ? ' 血月×2' : ''}`, victim.pos, 3);
+      ctx.ui.banner(`猎杀 ${victim.cname}!(第 ${owner.stats.kills} 只)`);
+    } else {
+      owner.score += 300;
+      owner.stats.kills++;
+    }
+  }
+
+  penalty(ctx, owner, amount, label, worldPos) {
+    owner.score = Math.max(0, owner.score - amount);
+    if (owner.isPlayer) ctx.ui.popup(ctx, `${label} -${amount}`, worldPos, 'bad');
   }
 }

@@ -2,20 +2,24 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { createWorld3D } from './world3d.js';
 import { Input } from './input.js';
-import { buildArena, updateProps } from './props.js';
+import { updateProps } from './props.js';
 import { updateFx } from './damage.js';
 import { updateFire } from './fire.js';
 import { ScoreSystem } from './score.js';
 import { EventsSystem } from './events.js';
 import { Critters } from './critters.js';
-import { AIController } from './ai.js';
+import { HiderAI } from './ai.js';
 import { UI } from './ui.js';
+import { Village } from './village.js';
+import { Signals } from './signals.js';
+import { Hunter } from './creatures/hunter.js';
 import { Dragon } from './creatures/dragon.js';
 import { Spheres } from './creatures/spheres.js';
 import { Guardian } from './creatures/guardian.js';
-import { damp, clamp } from './util.js';
+import { damp, clamp, pick } from './util.js';
 
-const KINDS = { dragon: Dragon, spheres: Spheres, guardian: Guardian };
+const HIDER_KINDS = { dragon: Dragon, spheres: Spheres, guardian: Guardian };
+const RESPAWN_DELAY = 4.0;
 
 async function boot() {
   await RAPIER.init();
@@ -32,7 +36,6 @@ async function boot() {
 function startMatch(ui, config) {
   const three = createWorld3D();
 
-  // 物理世界(重力偏大,手感更脆)
   const world = new RAPIER.World({ x: 0, y: -19.6, z: 0 });
   const groundBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0));
   world.createCollider(RAPIER.ColliderDesc.cuboid(170, 0.5, 170).setFriction(0.8), groundBody);
@@ -43,48 +46,52 @@ function startMatch(ui, config) {
     phys: { RAPIER, world },
     props: [], debris: [], creatures: [], fx: [],
     critters: null,
+    village: null,
     score: new ScoreSystem(),
     ui,
-    mode: config.mode,
-    matchDuration: config.mode === 'score' ? 180 : 300,
+    mode: 'hunt',
+    matchDuration: 180,
     time: 0, matchTime: 0,
+    bloodMoon: false,
     zone: { active: false, radius: 999 },
     rain: { active: false, slippery: false },
     shake: 0,
-    camTarget: new THREE.Vector3(0, 0, 50),
+    camTarget: new THREE.Vector3(0, 0, 0),
     over: false,
   };
 
-  buildArena(ctx);
+  window.GM = ctx; // 调试句柄
+  new Village(ctx);
   ctx.critters = new Critters(ctx);
   ctx.events = new EventsSystem(ctx);
+  ctx.signals = new Signals(ctx);
 
-  // 生物:玩家一只 + 另外两种各一只 AI
-  const spawnAngles = [Math.PI / 2, Math.PI / 2 + (Math.PI * 2) / 3, Math.PI / 2 + (Math.PI * 4) / 3];
-  const otherKinds = Object.keys(KINDS).filter((k) => k !== config.kind);
-  const specs = [
-    { kind: config.kind, isPlayer: true },
-    { kind: otherKinds[0], isPlayer: false },
-    { kind: otherKinds[1], isPlayer: false },
-  ];
+  // 猎人出生在村庄广场
+  const cc = ctx.village.cellCenter(4, 4);
+  const hunter = new Hunter(ctx, { x: cc.x, z: cc.z + 6, isPlayer: true });
+  ctx.player = hunter;
+  ctx.creatures.push(hunter);
+  ctx.camTarget.set(hunter.pos.x, 0, hunter.pos.z);
+
+  // 三只躲藏生物,各刷在远处
   const ais = [];
-  specs.forEach((s, i) => {
-    const x = Math.cos(spawnAngles[i]) * 52;
-    const z = Math.sin(spawnAngles[i]) * 52;
-    const c = new KINDS[s.kind](ctx, { x, z, isPlayer: s.isPlayer });
+  function spawnHider(kind) {
+    const at = ctx.village.farCell(ctx.player.pos.x, ctx.player.pos.z, 4);
+    const c = new HIDER_KINDS[kind](ctx, { x: at.x, z: at.z, isPlayer: false });
     ctx.creatures.push(c);
-    if (s.isPlayer) ctx.player = c;
-    else ais.push(new AIController(ctx, c));
-  });
-  ctx.camTarget.copy(ctx.player.pos);
+    ais.push(new HiderAI(ctx, c));
+    return c;
+  }
+  for (const k of ['dragon', 'spheres', 'guardian']) spawnHider(k);
+
+  const respawnQueue = []; // {at, kind}
 
   const input = new Input(three.camera);
   ui.startHud(ctx);
-  ui.banner(config.mode === 'score' ? '3分钟 —— 拆得越狠,分越高!' : '毁掉其余两只生物!');
+  ui.banner('读懂场景的信号,找出躲藏的生物');
 
   // ---- 主循环 ----
   let last = performance.now();
-  let brawlGrace = 0;
 
   function frame(now) {
     const dt = clamp((now - last) / 1000, 0, 0.05);
@@ -98,9 +105,22 @@ function startMatch(ui, config) {
       const pin = input.sample();
       pin.mouseX = input.mouseX;
       pin.mouseY = input.mouseY;
-      if (ctx.player.alive) ctx.player.update(dt, pin);
-      for (const ai of ais) {
-        if (ai.c.alive) ai.c.update(dt, ai.update(dt));
+      if (hunter.alive) hunter.update(dt, pin);
+      for (let i = ais.length - 1; i >= 0; i--) {
+        const ai = ais[i];
+        if (!ai.c.alive) {
+          // 死亡 → 排队重生一只新的(随机种类)
+          respawnQueue.push({ at: ctx.time + RESPAWN_DELAY, kind: pick(Object.keys(HIDER_KINDS)) });
+          ais.splice(i, 1);
+          continue;
+        }
+        ai.c.update(dt, ai.update(dt));
+      }
+      for (let i = respawnQueue.length - 1; i >= 0; i--) {
+        if (ctx.time >= respawnQueue[i].at) {
+          spawnHider(respawnQueue[i].kind);
+          respawnQueue.splice(i, 1);
+        }
       }
 
       ctx.critters.update(ctx, dt);
@@ -110,34 +130,30 @@ function startMatch(ui, config) {
       world.timestep = dt;
       world.step();
       updateProps(ctx, dt);
+      ctx.signals.update(ctx, dt); // 信号在物理同步后叠加网格微扰
       updateFx(ctx, dt);
       ui.updateHud(ctx);
 
       // ---- 结束判定 ----
-      const aliveCount = ctx.creatures.filter((c) => c.alive).length;
-      if (ctx.mode === 'score' && ctx.matchTime >= ctx.matchDuration) endMatch();
-      if (ctx.mode === 'brawl') {
-        if (aliveCount <= 1) {
-          brawlGrace += dt;
-          if (brawlGrace > 2.0) endMatch();
-        }
-        if (ctx.matchTime >= ctx.matchDuration) endMatch();
+      if (ctx.matchTime >= ctx.matchDuration) endMatch('time');
+      else if (!hunter.alive) {
+        if (!ctx._deadT) ctx._deadT = ctx.time;
+        if (ctx.time - ctx._deadT > 2.0) endMatch('dead');
       }
     } else {
       updateFx(ctx, dt);
     }
 
-    // ---- 相机:跟随玩家(死了就观战最高分)----
-    let focus = ctx.player.alive ? ctx.player.pos
-      : (ctx.creatures.filter((c) => c.alive).sort((a, b) => b.score - a.score)[0]?.pos || ctx.player.pos);
-    ctx.camTarget.x = damp(ctx.camTarget.x, focus.x, 5, dt);
-    ctx.camTarget.z = damp(ctx.camTarget.z, focus.z, 5, dt);
+    // ---- 相机 ----
+    const focus = hunter.pos;
+    ctx.camTarget.x = damp(ctx.camTarget.x, focus.x, 6, dt);
+    ctx.camTarget.z = damp(ctx.camTarget.z, focus.z, 6, dt);
     ctx.shake = Math.max(0, ctx.shake - dt * 2.2);
     const sh = ctx.shake * 0.6;
     three.camera.position.set(
       ctx.camTarget.x + (Math.random() - 0.5) * sh,
-      26 + (Math.random() - 0.5) * sh,
-      ctx.camTarget.z + 18 + (Math.random() - 0.5) * sh
+      24 + (Math.random() - 0.5) * sh,
+      ctx.camTarget.z + 16 + (Math.random() - 0.5) * sh
     );
     three.camera.lookAt(ctx.camTarget.x, 0, ctx.camTarget.z);
 
@@ -145,10 +161,10 @@ function startMatch(ui, config) {
     requestAnimationFrame(frame);
   }
 
-  function endMatch() {
+  function endMatch(reason) {
     if (ctx.over) return;
     ctx.over = true;
-    ui.showEnd(ctx, config);
+    ui.showEnd(ctx, config, reason);
   }
 
   requestAnimationFrame(frame);

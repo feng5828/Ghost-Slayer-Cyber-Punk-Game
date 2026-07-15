@@ -3,140 +3,174 @@ import { rand, pick } from './util.js';
 import { propPos } from './props.js';
 
 // ============================================================================
-// AI 控制器:产出与玩家相同的 input 结构
-// 决策:低血逃跑 > 敌人近身/终局圈小时开战 > 找道具密集区刷分
+// HiderAI:躲藏生物的控制器(捉迷藏的"藏"方)
+// 状态:lurk 潜伏 → flee 逃窜(玩家靠近/受击) → fight 反击(被逼入绝境/血月)
+// 逃窜走迷宫 BFS;金属球群被逼急了会钻穿树篱开路
 // ============================================================================
 
-export class AIController {
+export class HiderAI {
   constructor(ctx, creature) {
     this.ctx = ctx;
     this.c = creature;
-    this.thinkT = rand(0.5, 1.5);
-    this.state = 'farm';
-    this.target = null;        // Vector3 或 creature
+    this.state = 'lurk';
+    this.navT = 0;
+    this.target = new THREE.Vector3(creature.pos.x, 0, creature.pos.z);
     this.aim = new THREE.Vector3();
+    this.lastHpRatio = creature.hpRatio();
+    this.fightUntil = 0;
+    this.pulse = 0;
     this.holdPrimary = false;
     this.holdSecondary = false;
-    this.pulse = 0;
-  }
-
-  think() {
-    const ctx = this.ctx, c = this.c;
-    const enemies = ctx.creatures.filter((e) => e !== c && e.alive);
-    let nearest = null, nd = Infinity;
-    for (const e of enemies) {
-      const d = e.pos.distanceTo(c.pos);
-      if (d < nd) { nd = d; nearest = e; }
-    }
-
-    const lowHp = c.hpRatio() < 0.3;
-    const endgame = ctx.zone.active && ctx.zone.radius < 50;
-    const brawl = ctx.mode === 'brawl';
-
-    if (lowHp && nearest && nd < 25) {
-      this.state = 'flee';
-      this.target = nearest;
-    } else if (nearest && (nd < (brawl ? 30 : 16) || endgame)) {
-      this.state = 'attack';
-      this.target = nearest;
-    } else {
-      this.state = 'farm';
-      // 找一个还活着的道具作为目标(偏爱高分)
-      const cand = [];
-      for (let i = 0; i < 12; i++) {
-        const p = pick(this.ctx.props);
-        if (p && !p.dead) cand.push(p);
-      }
-      cand.sort((a, b) => b.def.points - a.def.points);
-      this.target = cand[0] || null;
-    }
+    this.breachTarget = null; // 要钻穿的树篱
   }
 
   update(dt) {
-    const ctx = this.ctx, c = this.c;
-    this.thinkT -= dt;
-    if (this.thinkT <= 0) { this.thinkT = rand(1.2, 2.2); this.think(); }
+    const ctx = this.ctx, c = this.c, v = ctx.village;
+    const player = ctx.player;
+    this.navT -= dt;
     this.pulse -= dt;
 
-    let tx = 0, tz = 0;
-    let primary = false;
-    const kind = c.kind;
+    const hpNow = c.hpRatio();
+    const gotHit = hpNow < this.lastHpRatio - 0.001;
+    this.lastHpRatio = hpNow;
 
-    // 目标点
-    let tp = null;
-    if (this.state === 'farm' && this.target && !this.target.dead) {
-      tp = propPos(this.target);
-    } else if ((this.state === 'attack' || this.state === 'flee') && this.target?.alive) {
-      tp = this.target.pos;
-    }
-    // 圈外先回圈
-    const distC = Math.hypot(c.pos.x, c.pos.z);
-    if (ctx.zone.active && distC > ctx.zone.radius - 5) {
-      tp = new THREE.Vector3(0, 0, 0);
-      if (this.state === 'flee') this.state = 'farm';
-    }
+    const pd = player.alive ? c.pos.distanceTo(player.pos) : 999;
 
-    if (tp) {
-      const dx = tp.x - c.pos.x, dz = tp.z - c.pos.z;
-      const d = Math.hypot(dx, dz) || 1;
-      if (this.state === 'flee') { tx = -dx / d; tz = -dz / d; }
-      else { tx = dx / d; tz = dz / d; }
-      this.aim.copy(tp).setY(0);
-      var targetDist = d;
-    } else {
-      var targetDist = Infinity;
+    // ---- 状态迁移 ----
+    if (ctx.bloodMoon && player.alive) {
+      this.state = 'fight';
+    } else if (gotHit) {
+      // 被打了:先短暂反击,再跑
+      if (this.state !== 'fight' || ctx.time > this.fightUntil) {
+        this.state = Math.random() < 0.45 ? 'fight' : 'flee';
+        this.fightUntil = ctx.time + rand(1.5, 3.0);
+      }
+      this.navT = 0;
+    } else if (this.state === 'fight' && ctx.time > this.fightUntil && !ctx.bloodMoon) {
+      this.state = 'flee';
+      this.navT = 0;
+    } else if (this.state === 'lurk' && pd < 16) {
+      this.state = 'flee';
+      this.navT = 0;
+    } else if (this.state === 'flee' && pd > 45) {
+      this.state = 'lurk';
+      this.navT = 0;
     }
 
-    // 各生物的技能习惯
-    if (kind === 'dragon') {
-      // 距离合适就朝目标冲刺
-      if (this.state !== 'flee' && targetDist > 5 && targetDist < 30 && this.pulse <= 0) {
-        primary = true;
-        this.pulse = rand(1.5, 2.8);
-      }
-      this.holdPrimary = false;
-      this.holdSecondary = false;
-    } else if (kind === 'spheres') {
-      if (this.state === 'attack' && targetDist < 30) {
-        this.holdPrimary = true; this.holdSecondary = false;      // 钻头怼脸
-      } else if (this.state === 'farm' && targetDist < 12) {
-        this.holdPrimary = false; this.holdSecondary = true;      // 环形绞盘刷场
-      } else {
-        this.holdPrimary = false; this.holdSecondary = false;
-      }
-    } else if (kind === 'guardian') {
-      // 与敌人保持距离,魅化目标道具,敌人近了就放导弹
-      if (this.state === 'attack' && this.target?.alive) {
-        const d = this.target.pos.distanceTo(c.pos);
-        if (d < 14) { tx = -tx; tz = -tz; } // 风筝
-        if (c.minions.length > 0 && d < 26 && this.pulse <= 0) {
-          this.pulse = rand(2, 4);
-          return this.pack(tx, tz, false, this.holdPrimary, true, false);
-        }
-      }
-      // farm = 魅化最近的可魅化道具
-      if (c.minions.length < 4) {
-        let best = null, bd = 26 * 26;
-        for (const p of ctx.props) {
-          if (p.dead || !p.def.charmable || p.state.charmedBy) continue;
-          const d = propPos(p).distanceToSquared(c.pos);
-          if (d < bd) { bd = d; best = p; }
+    // ---- 导航目标更新 ----
+    if (this.navT <= 0) {
+      this.navT = this.state === 'flee' ? 0.5 : rand(1.2, 2.5);
+      const { cx, cz } = v.worldToCell(c.pos.x, c.pos.z);
+
+      if (this.state === 'flee' && player.alive) {
+        const pc = v.worldToCell(player.pos.x, player.pos.z);
+        const dist = v.bfsFrom(pc.cx, pc.cz);
+        // 选 BFS 距离最大的邻格
+        let best = null, bd = dist[cx + cz * 9] ?? 0;
+        const dirs = [[1, 0, 0], [-1, 0, 1], [0, 1, 2], [0, -1, 3]];
+        for (const [dx, dz, dir] of dirs) {
+          const nx = cx + dx, nz = cz + dz;
+          if (nx < 0 || nx >= 9 || nz < 0 || nz >= 9) continue;
+          if (!v.passable(cx, cz, dir)) continue;
+          const nd = dist[nx + nz * 9];
+          if (nd > bd) { bd = nd; best = [nx, nz]; }
         }
         if (best) {
-          const bp = propPos(best);
-          this.aim.copy(bp).setY(0);
-          this.holdPrimary = true;
-          // 靠近到魅化射程
-          if (bp.distanceTo(c.pos) > 24) { const d = bp.distanceTo(c.pos); tx = (bp.x - c.pos.x) / d; tz = (bp.z - c.pos.z) / d; }
+          const cc = v.cellCenter(best[0], best[1]);
+          this.target.set(cc.x + rand(-4, 4), 0, cc.z + rand(-4, 4));
+          this.breachTarget = null;
+        } else if (c.kind === 'spheres') {
+          // 无路可逃:金属球群钻墙!
+          this.breachTarget = this.nearestHedge();
         } else {
-          this.holdPrimary = false;
+          // 其他生物被堵死 → 拼命
+          this.state = 'fight';
+          this.fightUntil = ctx.time + 2.5;
         }
-      } else {
-        this.holdPrimary = false;
+      } else if (this.state === 'lurk') {
+        // 在当前格附近小幅游荡(贴着道具躲)
+        const cc = v.cellCenter(cx, cz);
+        this.target.set(cc.x + rand(-6, 6), 0, cc.z + rand(-6, 6));
       }
     }
 
-    return this.pack(tx, tz, primary, this.holdPrimary, false, this.holdSecondary);
+    // ---- 产出输入 ----
+    let mx = 0, mz = 0;
+    let primary = false;
+    this.holdPrimary = false;
+    this.holdSecondary = false;
+
+    if (this.state === 'fight' && player.alive) {
+      this.aim.copy(player.pos).setY(0);
+      const dx = player.pos.x - c.pos.x, dz = player.pos.z - c.pos.z;
+      const d = Math.hypot(dx, dz) || 1;
+
+      if (c.kind === 'dragon') {
+        mx = dx / d; mz = dz / d;
+        if (d > 4 && d < 28 && this.pulse <= 0) { primary = true; this.pulse = rand(1.6, 2.6); }
+      } else if (c.kind === 'spheres') {
+        mx = dx / d; mz = dz / d;
+        this.holdPrimary = d < 30; // 钻头怼人
+      } else if (c.kind === 'guardian') {
+        // 风筝:保持12~20米,魅化道具丢人
+        if (d < 12) { mx = -dx / d; mz = -dz / d; }
+        else if (d > 20) { mx = dx / d; mz = dz / d; }
+        if (c.minions.length > 0 && d < 26 && this.pulse <= 0) {
+          this.pulse = rand(1.8, 3.2);
+          return this.pack(mx, mz, false, false, true, false);
+        }
+        // 补充仆从
+        const best = this.nearestCharmable();
+        if (best && c.minions.length < 4) {
+          this.aim.copy(propPos(best)).setY(0);
+          this.holdPrimary = true;
+        }
+      }
+    } else if (this.breachTarget && !this.breachTarget.dead) {
+      // 金属球群钻墙
+      const bp = propPos(this.breachTarget);
+      this.aim.copy(bp).setY(0);
+      const dx = bp.x - c.pos.x, dz = bp.z - c.pos.z;
+      const d = Math.hypot(dx, dz) || 1;
+      mx = dx / d; mz = dz / d;
+      this.holdPrimary = true;
+      if (this.breachTarget.dead || d < 2) this.breachTarget = null;
+    } else {
+      const dx = this.target.x - c.pos.x, dz = this.target.z - c.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 1.5) {
+        const spd = this.state === 'flee' ? 1 : 0.4; // 潜伏时慢速蠕动
+        mx = (dx / d) * spd; mz = (dz / d) * spd;
+      }
+      this.aim.copy(this.target);
+      // 红龙逃跑时偶尔冲刺(会撞碎沿途的东西 → 给玩家留下线索!)
+      if (c.kind === 'dragon' && this.state === 'flee' && this.pulse <= 0 && Math.random() < 0.3) {
+        primary = true;
+        this.pulse = rand(2.5, 4);
+      }
+    }
+
+    return this.pack(mx, mz, primary, this.holdPrimary, false, this.holdSecondary);
+  }
+
+  nearestHedge() {
+    let best = null, bd = 20 * 20;
+    for (const p of this.ctx.props) {
+      if (p.dead || p.type !== 'hedge') continue;
+      const d = propPos(p).distanceToSquared(this.c.pos);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+
+  nearestCharmable() {
+    let best = null, bd = 24 * 24;
+    for (const p of this.ctx.props) {
+      if (p.dead || !p.def.charmable || p.state.charmedBy) continue;
+      const d = propPos(p).distanceToSquared(this.c.pos);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
   }
 
   pack(mx, mz, primary, primaryHeld, secondary, secondaryHeld) {

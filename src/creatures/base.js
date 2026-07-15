@@ -38,6 +38,11 @@ export class Creature {
     this.pos.z = clamp(this.pos.z + this.vel.z * dt, -145, 145);
   }
 
+  // 村庄迷宫的墙体碰撞(移动后调用)
+  collide() {
+    if (this.ctx.village) this.ctx.village.resolveCircle(this.pos, this.colRadius ?? 0.8);
+  }
+
   electrify(dur, src) {
     if (!this.alive) return;
     this.elecT = Math.max(this.elecT, dur);
@@ -55,9 +60,9 @@ export class Creature {
     addFlash(this.ctx, this.pos, 6, this.color);
     spawnDebris(this.ctx, this.pos.clone().setY(1.5), this.color, 10,
       src && src.owner ? { owner: src.owner, chain: src.chain + 1 } : null);
-    if (src && src.owner && src.owner !== this && src.owner.alive) {
-      this.ctx.score.killBonus(this.ctx, src.owner, this);
-    }
-    this.ctx.ui.banner(`${this.cname} 被摧毁了!`);
+    const credited = src && src.owner && src.owner !== this && src.owner.alive;
+    if (credited) this.ctx.score.killBonus(this.ctx, src.owner, this);
+    // 玩家击杀时 killBonus 已弹"猎杀"横幅,不再覆盖
+    if (!(credited && src.owner.isPlayer)) this.ctx.ui.banner(`${this.cname} 被摧毁了!`);
   }
 }
