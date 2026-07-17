@@ -82,6 +82,22 @@ body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; use
   font-size: 15px; line-height: 2.1; box-shadow: 4px 4px 0 rgba(0,0,0,.5);
 }
 
+/* ---------- 常驻鬼追踪器 ---------- */
+#tracker {
+  position: absolute; top: 60px; left: 16px;
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 14px; text-shadow: 2px 2px 0 #0a0a1a;
+}
+#tracker .trk {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(10, 10, 20, .5); padding: 3px 9px 3px 7px;
+  border-left: 3px solid #fff; min-width: 132px;
+}
+#tracker .trk.weak { background: rgba(60, 48, 12, .55); }
+#tracker .arw { display: inline-block; width: 14px; text-align: center; font-size: 15px; }
+#tracker .nm { min-width: 54px; }
+#tracker .ds { color: #aeb6c0; margin-left: auto; }
+
 /* ---------- 菜单 / 结算 ---------- */
 .screen {
   position: fixed; inset: 0; display: flex; flex-direction: column;
@@ -131,6 +147,7 @@ body { font-family: 'FusionPixel', 'PingFang SC', monospace; color: #e8e8e8; use
 
 <div id="hud">
   <div id="timer">3:00</div>
+  <div id="tracker"></div>
   <div id="scoreboard"></div>
   <div id="hpbar"><span class="label"></span><span class="val"></span></div>
   <div id="hint"></div>

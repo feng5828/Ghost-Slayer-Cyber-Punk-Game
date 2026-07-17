@@ -24,18 +24,23 @@ function getFlameTex() {
   return flameTex;
 }
 
+// 火焰精灵(火盆常燃焰等场景也会用)
+export function createFlameSprite(scale = 2) {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: getFlameTex(), transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, color: 0xffffff,
+  }));
+  sprite.scale.set(scale, scale * 1.3, 1);
+  sprite.userData.base = scale;
+  return sprite;
+}
+
 export function ignite(ctx, prop, src) {
   if (prop.dead || !prop.def.flammable || prop.state.burning) return;
   if (ctx.rain.active) return; // 血雨中点不着火
   prop.state.burning = { owner: src.owner, chain: src.chain, spreadCd: 0.6 };
 
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: getFlameTex(), transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, color: 0xffffff,
-  }));
-  const scale = prop.type === 'balloon' ? 9 : rand(1.6, 2.4);
-  sprite.scale.set(scale, scale * 1.3, 1);
-  sprite.userData.base = scale;
+  const sprite = createFlameSprite(prop.type === 'balloon' ? 9 : rand(1.6, 2.4));
   ctx.three.scene.add(sprite);
   prop.state.flameSprite = sprite;
 }
@@ -71,7 +76,7 @@ export function updateFire(ctx, dt) {
       }
       // 烧到村民和生物(火把把躲藏的生物逼出来的关键)
       ctx.critters.hitAt(ctx, pos, 2.2, { owner: b.owner, chain: b.chain + 1 });
-      hitCreaturesAt(ctx, pos, 2.6, 10, { owner: b.owner, chain: b.chain + 1 }, null);
+      hitCreaturesAt(ctx, pos, 2.6, 10, { owner: b.owner, chain: b.chain + 1, fire: true, forceAshore: true }, null);
     }
 
     // 火焰贴着道具跳动

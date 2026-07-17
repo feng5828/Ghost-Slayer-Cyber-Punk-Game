@@ -54,6 +54,17 @@ export class Guardian extends Creature {
     star.position.y = 1.0;
     this.star = star;
     body.add(star);
+    // 垂纸条手臂(顶端为支点,随风飘摆)
+    this.arms = [];
+    for (const side of [-1, 1]) {
+      const g = new THREE.BoxGeometry(0.14, 0.7, 0.04);
+      g.translate(0, -0.35, 0);
+      const arm = new THREE.Mesh(g, paperMat);
+      arm.position.set(side * 0.52, 0.06, 0);
+      arm.castShadow = true;
+      body.add(arm);
+      this.arms.push(arm);
+    }
     this.root.add(body);
 
     // 怨视射线可视化(惨红怨气)
@@ -115,6 +126,12 @@ export class Guardian extends Creature {
     this.hoverY = 1.8 + Math.sin(ctx.time * 2.2) * 0.25;
     this.bodyMesh.position.set(this.pos.x, this.hoverY, this.pos.z);
     this.star.rotation.y += dt * 3;
+    // 垂纸条手臂随风/移动飘摆
+    for (let i = 0; i < this.arms.length; i++) {
+      const side = i === 0 ? -1 : 1;
+      this.arms[i].rotation.z = Math.sin(ctx.time * 2.2 + i) * 0.4 - this.vel.x * 0.02 * side;
+      this.arms[i].rotation.x = Math.sin(ctx.time * 1.7 + i) * 0.25;
+    }
     if (this.vel.lengthSq() > 1) {
       this.bodyMesh.rotation.y = damp(this.bodyMesh.rotation.y, Math.atan2(-this.vel.x, -this.vel.z), 6, dt);
     }

@@ -22,6 +22,10 @@ export class HiderAI {
     this.holdPrimary = false;
     this.holdSecondary = false;
     this.breachTarget = null; // 要钻穿的树篱
+    // 地形化 lurk 用的内部状态
+    this.orbitA = rand(0, Math.PI * 2); // 鬼火绕庙角度
+    this.crawlSide = Math.random() < 0.5 ? 1 : -1; // 蜈蚣贴墙滑行方向
+    this.patrolPt = null; // 水鬼/雷鬼巡逻目标点
   }
 
   update(dt) {
@@ -90,9 +94,8 @@ export class HiderAI {
           this.fightUntil = ctx.time + 2.5;
         }
       } else if (this.state === 'lurk') {
-        // 在当前格附近小幅游荡(贴着道具躲)
-        const cc = v.cellCenter(cx, cz);
-        this.target.set(cc.x + rand(-6, 6), 0, cc.z + rand(-6, 6));
+        // 地形化常态:各鬼按主场地形活动(无主场要素时回退通用游荡)
+        this.setLurkTarget(v);
       }
     }
 
@@ -127,6 +130,30 @@ export class HiderAI {
           this.aim.copy(propPos(best)).setY(0);
           this.holdPrimary = true;
         }
+      } else if (c.kind === 'water') {
+        // 水鬼主场:尽量把战斗拖回最近的水渠;被火/爆炸逼上岸时例外
+        const wp = ctx.village.nearestWater(c.pos);
+        if (wp && (!c.landPanicT || c.landPanicT <= 0)) {
+          this.aim.set(wp.x, 0, wp.z);
+          const wx = wp.x - c.pos.x, wz = wp.z - c.pos.z;
+          const wd = Math.hypot(wx, wz) || 1;
+          if (!ctx.village.isWater(c.pos) || wd > 3) { mx = wx / wd; mz = wz / wd; }
+          else { mx = dx / d; mz = dz / d; }
+        } else {
+          mx = dx / d; mz = dz / d;
+        }
+      } else if (c.kind === 'thunder') {
+        // 雷鬼主场:贴着电源点游走,充能后主动近身电击
+        const pp = this.nearestPowered();
+        if (pp && c.charge < 55) {
+          const ppos = propPos(pp);
+          this.aim.copy(ppos).setY(0);
+          const ex = ppos.x - c.pos.x, ez = ppos.z - c.pos.z;
+          const ed = Math.hypot(ex, ez) || 1;
+          mx = ex / ed; mz = ez / ed;
+        } else {
+          mx = dx / d; mz = dz / d;
+        }
       }
     } else if (this.breachTarget && !this.breachTarget.dead) {
       // 鬼火群钻墙
@@ -141,7 +168,7 @@ export class HiderAI {
       const dx = this.target.x - c.pos.x, dz = this.target.z - c.pos.z;
       const d = Math.hypot(dx, dz);
       if (d > 1.5) {
-        const spd = this.state === 'flee' ? 1 : 0.4; // 潜伏时慢速蠕动
+        const spd = this.state === 'flee' ? 1 : 0.55; // 潜伏时缓行(地形行为要看得见)
         mx = (dx / d) * spd; mz = (dz / d) * spd;
       }
       this.aim.copy(this.target);
@@ -150,9 +177,80 @@ export class HiderAI {
         primary = true;
         this.pulse = rand(2.5, 4);
       }
+      // 纸傀儡常态:商街里预先囤仆从(平时就魅化)
+      if (c.kind === 'guardian' && this.state === 'lurk') {
+        const cand = this.nearestCharmable();
+        if (cand && c.minions.length < 4) { this.aim.copy(propPos(cand)).setY(0); this.holdPrimary = true; }
+      }
     }
 
     return this.pack(mx, mz, primary, this.holdPrimary, false, this.holdSecondary);
+  }
+
+  // ---- 地形化 lurk 目标分派 ----
+  setLurkTarget(v) {
+    switch (this.c.kind) {
+      case 'dragon': return this.lurkDragon(v);
+      case 'spheres': return this.lurkSpheres(v);
+      case 'water': return this.lurkWater(v);
+      case 'thunder': return this.lurkThunder(v);
+      default: return this.genericWander(v);
+    }
+  }
+
+  genericWander(v) {
+    const { cx, cz } = v.worldToCell(this.c.pos.x, this.c.pos.z);
+    const cc = v.cellCenter(cx, cz);
+    this.target.set(cc.x + rand(-7, 7), 0, cc.z + rand(-7, 7));
+    this.navT = rand(1.0, 2.2);
+  }
+
+  // 蜈蚣精:贴着最近的巷墙沿切向滑行,到头就翻面折返
+  lurkDragon(v) {
+    const hedge = this.nearestHedge();
+    if (!hedge) return this.genericWander(v);
+    const hp = propPos(hedge);
+    let nx = this.c.pos.x - hp.x, nz = this.c.pos.z - hp.z;
+    const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;      // 墙→鬼 的法向
+    const tx = -nz * this.crawlSide, tz = nx * this.crawlSide;   // 沿墙切向
+    const standoff = 2.4;
+    this.target.set(hp.x + nx * standoff + tx * 7, 0, hp.z + nz * standoff + tz * 7);
+    this.navT = rand(0.55, 1.0);
+    if (Math.random() < 0.15) this.crawlSide *= -1; // 偶尔折返
+  }
+
+  // 鬼火群:以稳定角速度绕大庙做圆周(汇聚 + 规律),半径贴着火盆环顺路吞火
+  lurkSpheres(v) {
+    const tc = v.templeCenter;
+    if (!tc) return this.genericWander(v);
+    this.orbitA += rand(0.25, 0.5);
+    const R = (v.templeR || 30) * rand(0.45, 0.62);
+    this.target.set(tc.x + Math.cos(this.orbitA) * R, 0, tc.z + Math.sin(this.orbitA) * R);
+    this.navT = rand(0.5, 0.85);
+  }
+
+  // 水鬼:在水域之间巡游,尽量待在水里
+  lurkWater(v) {
+    const rects = v.waterRects;
+    if (!rects || !rects.length) return this.genericWander(v);
+    if (!this.patrolPt || this.c.pos.distanceTo(this.patrolPt) < 4 || Math.random() < 0.08) {
+      const r = pick(rects);
+      this.patrolPt = new THREE.Vector3(r.x + rand(-r.hw * 0.6, r.hw * 0.6), 0, r.z + rand(-r.hd * 0.6, r.hd * 0.6));
+    }
+    this.target.copy(this.patrolPt);
+    this.navT = rand(0.6, 1.0);
+  }
+
+  // 雷鬼:在电源点之间跳站(到点旁停留吸电充能,再挑下一个)
+  lurkThunder(v) {
+    const nodes = v.powerNodes;
+    if (!nodes || !nodes.length) return this.genericWander(v);
+    if (!this.patrolPt || this.c.pos.distanceTo(this.patrolPt) < 3.5 || Math.random() < 0.06) {
+      const n = pick(nodes);
+      this.patrolPt = new THREE.Vector3(n.x + rand(-2, 2), 0, n.z + rand(-2, 2));
+    }
+    this.target.copy(this.patrolPt);
+    this.navT = rand(0.7, 1.2);
   }
 
   nearestHedge() {
@@ -169,6 +267,16 @@ export class HiderAI {
     let best = null, bd = 24 * 24;
     for (const p of this.ctx.props) {
       if (p.dead || !p.def.charmable || p.state.charmedBy) continue;
+      const d = propPos(p).distanceToSquared(this.c.pos);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+
+  nearestPowered() {
+    let best = null, bd = 26 * 26;
+    for (const p of this.ctx.props) {
+      if (p.dead || !p.def.powered) continue;
       const d = propPos(p).distanceToSquared(this.c.pos);
       if (d < bd) { bd = d; best = p; }
     }

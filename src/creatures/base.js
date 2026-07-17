@@ -25,13 +25,21 @@ export class Creature {
   }
 
   // 通用地面移动:input.move 是屏幕方向(x右 z下),血雨时打滑
+  // 玩家会叠加"街区地形手感"(速度/加速/湿滑),让各区走起来不同;
+  // 鬼怪暂不吃地形修正(其地形化行为属任务#2),避免打乱现有 AI 平衡。
   moveCommon(dt, input, speed, accelK = 6) {
     this.stun = Math.max(0, this.stun - dt);
     this.elecT = Math.max(0, this.elecT - dt);
-    const slippery = this.ctx.rain.slippery;
-    const k = slippery ? accelK * 0.3 : accelK;
-    const tx = this.stun > 0 ? 0 : input.move.x * speed;
-    const tz = this.stun > 0 ? 0 : input.move.z * speed;
+    let speedMul = 1, accelMul = 1, terrSlip = false;
+    if (this.isPlayer && this.ctx.village) {
+      const t = this.ctx.village.terrainAt(this.pos);
+      speedMul = t.speedMul; accelMul = t.accelMul; terrSlip = t.slippery;
+    }
+    const slippery = this.ctx.rain.slippery || terrSlip;
+    const k = (slippery ? accelK * 0.3 : accelK) * accelMul;
+    const sp = speed * speedMul;
+    const tx = this.stun > 0 ? 0 : input.move.x * sp;
+    const tz = this.stun > 0 ? 0 : input.move.z * sp;
     this.vel.x = damp(this.vel.x, tx, k, dt);
     this.vel.z = damp(this.vel.z, tz, k, dt);
     this.pos.x = clamp(this.pos.x + this.vel.x * dt, -145, 145);

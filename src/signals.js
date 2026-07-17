@@ -14,6 +14,8 @@ const CUES = {
   dragon:   { color: 0xff5a2a, riseMin: 1.5, riseMax: 3.0, jitterFreq: 4,  jitterAmp: 0.055 },
   spheres:  { color: 0x8fe8c4, riseMin: 0.2, riseMax: 0.7, jitterFreq: 42, jitterAmp: 0.035 },
   guardian: { color: 0xf0e6e8, riseMin: 0.5, riseMax: 1.0, jitterFreq: 1.2, jitterAmp: 0.09 },
+  water:    { color: 0x5ee8ff, riseMin: 0.05, riseMax: 0.45, jitterFreq: 9,  jitterAmp: 0.065 },
+  thunder:  { color: 0x7ab8ff, riseMin: 1.2, riseMax: 3.4, jitterFreq: 18, jitterAmp: 0.08 },
 };
 const SIGNAL_RANGE = 24;   // 玩家距生物多远开始出现信号
 const CUE_RADIUS = 7;      // 生物周围多大范围的道具被"污染"

@@ -5,9 +5,11 @@ import * as THREE from 'three';
 // ============================================================================
 
 const SIGNAL_LEGEND = `
-<div class="sig"><span style="color:#ff7a4a">● 焦热余烬飘起</span> —— 蜈蚣精在附近潜行</div>
-<div class="sig"><span style="color:#8fe8c4">● 阴风震颤,青磷浮动</span> —— 鬼火群蛰伏于此</div>
-<div class="sig"><span style="color:#f0e6e8">● 杂物被怨气托起漂浮</span> —— 纸傀儡伪装其间</div>
+<div class="sig"><span style="color:#ff7a4a">● 焦热余烬飘起</span> —— 蜈蚣精在老居民区潜行</div>
+<div class="sig"><span style="color:#8fe8c4">● 阴风震颤,青磷浮动</span> —— 鬼火群蛰伏于庙宇火盆</div>
+<div class="sig"><span style="color:#f0e6e8">● 杂物被怨气托起漂浮</span> —— 纸傀儡伪装在商业街</div>
+<div class="sig"><span style="color:#5ee8ff">● 水汽贴地游走</span> —— 水鬼藏在河道水巷</div>
+<div class="sig"><span style="color:#7ab8ff">● 电弧噼啪上窜</span> —— 雷鬼在机房区吸电</div>
 <div class="sig" style="color:#c86058">屏幕边缘的心跳脉动 = 恶鬼已在咫尺</div>`;
 
 export class UI {
@@ -68,6 +70,36 @@ export class UI {
       hp.querySelector('.val').textContent = '你被恶鬼所杀';
       hp.style.color = '#888';
     }
+
+    this.updateTracker(ctx);
+  }
+
+  // 常驻鬼追踪器:证明五只鬼都在场,并给出方向/距离辅助搜寻
+  updateTracker(ctx) {
+    const el = this.el('tracker');
+    if (!el) return;
+    const p = ctx.player;
+    if (!p || !p.alive) { el.innerHTML = ''; return; }
+    const names = { dragon: '蜈蚣精', spheres: '鬼火群', guardian: '纸傀儡', water: '水鬼', thunder: '雷鬼' };
+    const colors = { dragon: '#ff5a3a', spheres: '#8fe8c4', guardian: '#efe8dc', water: '#5ee8ff', thunder: '#9ecbff' };
+    let html = '';
+    for (const c of ctx.creatures) {
+      if (c === p || c.isPlayer || !c.alive) continue;
+      const nm = names[c.kind];
+      if (!nm) continue;
+      const dx = c.pos.x - p.pos.x, dz = c.pos.z - p.pos.z;
+      const dist = Math.round(Math.hypot(dx, dz));
+      const ang = Math.atan2(dx, -dz) * 180 / Math.PI; // 屏幕上:世界 -z = 上,+x = 右
+      const col = colors[c.kind] || '#fff';
+      const weak = c.weakened ? ' weak' : '';
+      const tag = c.weakened ? '虚弱' : `${dist}m`;
+      html +=
+        `<div class="trk${weak}" style="border-color:${col}">` +
+        `<span class="arw" style="transform:rotate(${ang.toFixed(0)}deg);color:${col}">▲</span>` +
+        `<span class="nm" style="color:${col}">${nm}</span>` +
+        `<span class="ds">${tag}</span></div>`;
+    }
+    el.innerHTML = html;
   }
 
   // 收服进度环:显示在目标鬼头顶

@@ -17,12 +17,12 @@ const MAX_HP = 120;
 const SPEED = 17;
 const CHARGE_TIME = 1.4;        // 蓄满所需秒数
 const CHARGE_MOVE_MULT = 0.5;   // 蓄力时移动减速
-const DASH_SPEED_MIN = 24;
-const DASH_SPEED_MAX = 62;
-const DASH_TIME_MIN = 0.22;
-const DASH_TIME_MAX = 0.5;
+const DASH_SPEED_MIN = 22;
+const DASH_SPEED_MAX = 44;
+const DASH_TIME_MIN = 0.18;
+const DASH_TIME_MAX = 0.33;      // 冲刺距离收短:满蓄约 14.5,轻点约 4(原来最远约 31)
 const DMG_MIN = 35;             // 轻点冲撞
-const DMG_MAX = 230;            // 满蓄力(可一击洞穿 150hp 的商铺)
+const DMG_MAX = 230;            // 满蓄力(伤害不变,只是冲得更近)
 const CREATURE_DMG_MULT = 0.6;  // 对恶鬼的冲撞倍率
 const TORCH_CD = 4.0;
 const TORCH_RANGE = 22;
@@ -55,35 +55,41 @@ export class Hunter extends Creature {
     this.field = null;     // 结界场域 {group, target, t, need, fading}
     this.fieldCd = 0;
 
-    // 造型:深色义体 + 青色面甲光条 + 背后符印发光 + 悬浮肩灯
-    const suitMat = TOON({ color: 0x161a28, metalness: 0.55, roughness: 0.4 });
-    const bodyM = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.45, 1.4, 10), suitMat);
-    bodyM.position.y = 0.95; bodyM.castShadow = true;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), suitMat);
-    head.position.y = 1.95;
-    this.visorMat = TOON({
-      color: 0x061014, emissive: 0x18e0c8, emissiveIntensity: 1.2, roughness: 0.3,
-    });
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.09, 0.12), this.visorMat);
-    visor.position.set(0, 1.98, -0.26);
-    // 背后符印(朱红发光的电子符)
-    this.sigilMat = TOON({
-      color: 0x1a0806, emissive: 0xff3a2a, emissiveIntensity: 0.8, roughness: 0.5,
-    });
-    const sigil = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.6, 0.04), this.sigilMat);
-    sigil.position.set(0, 1.25, 0.4);
-    // 肩部悬浮灯(左右各一)
-    for (const sx of [-0.55, 0.55]) {
-      const lamp = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.09),
-        TOON({ color: 0x0a0a12, emissive: 0xffd75e, emissiveIntensity: 1.0 })
-      );
-      lamp.position.set(sx, 1.7, 0.1);
-      lamp.userData.float = true;
-      this.root.add(lamp);
-    }
+    // ---- 程序化人形骨架:瘦高义体猎人(关节 Group 便于步态动画)----
+    this.gaitPhase = 0;
+    const suit = TOON({ color: 0x1a1f30, roughness: 0.45 });      // 义体主色
+    const suitDark = TOON({ color: 0x0e111c, roughness: 0.5 });    // 深部件
+    const accent = TOON({ color: 0x2a3a52, roughness: 0.4 });      // 关节/护甲
+    this.visorMat = TOON({ color: 0x061014, emissive: 0x18e0c8, emissiveIntensity: 1.2, roughness: 0.3 });
+    this.sigilMat = TOON({ color: 0x1a0806, emissive: 0xff3a2a, emissiveIntensity: 0.8, roughness: 0.5 });
+    const seg = (w, h, d, mat, py, mesh = 'box') => {
+      const g = mesh === 'cyl' ? new THREE.CylinderGeometry(w, d, h, 8) : new THREE.BoxGeometry(w, h, d);
+      const m = new THREE.Mesh(g, mat); m.position.y = py; m.castShadow = true; return m;
+    };
+    const joint = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
+
     this.figure = new THREE.Group();
-    this.figure.add(bodyM, head, visor, sigil);
+    // 髋(骨盆)
+    this.hips = joint(this.figure, 0, 0.98, 0);
+    this.hips.add(seg(0.42, 0.26, 0.26, suitDark, 0));
+    // 躯干(可绕腰前倾/呼吸)
+    this.chest = joint(this.hips, 0, 0.1, 0);
+    this.chest.add(seg(0.34, 0.66, 0.3, suit, 0.35, 'cyl')); // 锥形胸腔(上窄下宽)
+    const plate = seg(0.44, 0.34, 0.24, accent, 0.42); this.chest.add(plate); // 胸甲
+    const sigil = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.05), this.sigilMat);
+    sigil.position.set(0, 0.44, 0.17); this.chest.add(sigil); // 背后符
+    // 颈 + 头
+    this.chest.add(seg(0.12, 0.14, 0.12, suitDark, 0.74));
+    this.head = joint(this.chest, 0, 0.9, 0);
+    this.head.add(seg(0.34, 0.36, 0.34, suit, 0)); // 头盔(略方)
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.09, 0.1), this.visorMat);
+    visor.position.set(0, 0.02, -0.17); this.head.add(visor);
+    const crest = seg(0.06, 0.22, 0.18, accent, 0.2); this.head.add(crest); // 头顶脊
+    // 四肢
+    this.armL = this._buildArm(1, suit, accent);
+    this.armR = this._buildArm(-1, suit, accent);
+    this.legL = this._buildLeg(1, suit, suitDark);
+    this.legR = this._buildLeg(-1, suit, suitDark);
     this.root.add(this.figure);
 
     // 电浆符预制:燃着青焰的符纸
@@ -114,6 +120,65 @@ export class Hunter extends Creature {
     this.fieldGroup.add(ringLow, ringHigh, wall);
     this.fieldGroup.visible = false;
     this.root.add(this.fieldGroup);
+  }
+
+  _buildArm(side, suit, accent) {
+    const mk = (w, h, d, mat, py) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.y = py; m.castShadow = true; return m; };
+    const sh = new THREE.Group(); sh.position.set(side * 0.3, 0.62, 0); this.chest.add(sh);
+    sh.add(mk(0.14, 0.36, 0.14, suit, -0.18));            // 上臂
+    const elbow = new THREE.Group(); elbow.position.set(0, -0.36, 0); sh.add(elbow);
+    elbow.add(mk(0.12, 0.34, 0.12, accent, -0.17));       // 前臂
+    elbow.add(mk(0.15, 0.16, 0.18, suit, -0.4));          // 手/护腕
+    const lamp = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), TOON({ color: 0x0a0a12, emissive: 0xffd75e, emissiveIntensity: 1.0 }));
+    lamp.position.set(side * 0.14, 0.08, 0.02); sh.add(lamp); // 肩灯
+    return { sh, elbow };
+  }
+
+  _buildLeg(side, suit, dark) {
+    const mk = (w, h, d, mat, py) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.y = py; m.castShadow = true; return m; };
+    const hip = new THREE.Group(); hip.position.set(side * 0.14, -0.02, 0); this.hips.add(hip);
+    hip.add(mk(0.17, 0.46, 0.17, suit, -0.23));           // 大腿
+    const knee = new THREE.Group(); knee.position.set(0, -0.46, 0); hip.add(knee);
+    knee.add(mk(0.14, 0.44, 0.14, dark, -0.22));          // 小腿
+    const foot = mk(0.17, 0.1, 0.32, suit, -0.44); foot.position.z = -0.07; knee.add(foot); // 脚
+    return { hip, knee };
+  }
+
+  // 状态驱动的人形动画:待机呼吸 / 行走摆腿摆臂 / 蓄力屈膝后拉 / 冲刺突刺
+  animate(dt, frac) {
+    const ctx = this.ctx;
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    const sn = clamp(speed / SPEED, 0, 1);
+    const dashing = this.dashT > 0, charging = this.charging && !dashing;
+    this.gaitPhase += speed * dt * 0.95;
+    const gp = this.gaitPhase;
+    const R = (o, t, r = 14) => { o.rotation.x = damp(o.rotation.x, t, r, dt); };
+
+    const lean = dashing ? -0.5 : (charging ? -0.22 - frac * 0.22 : 0.05 + sn * 0.13);
+    R(this.chest, lean, 12);
+    this.head.rotation.x = damp(this.head.rotation.x, -lean * 0.5, 12, dt); // 头略回正保持视线
+    const bob = charging ? -0.14 * frac : (dashing ? -0.05 : Math.abs(Math.sin(gp * 2)) * 0.05 * sn);
+    this.hips.position.y = damp(this.hips.position.y, 0.98 + bob, 12, dt);
+
+    let hipL, hipR, kneeL, kneeR, shL, shR, elL, elR;
+    if (dashing) {
+      hipL = 0.9; hipR = -0.75; kneeL = -0.35; kneeR = 0.7; shL = -2.2; shR = -2.2; elL = 0.4; elR = 0.4;
+    } else if (charging) {
+      hipL = hipR = 0.55; kneeL = kneeR = -1.0; shL = shR = -1.7 - frac * 0.5; elL = elR = 0.7;
+    } else {
+      const amp = sn * 0.85;
+      const lp = Math.sin(gp), lpO = Math.sin(gp + Math.PI);
+      hipL = lp * amp; hipR = lpO * amp;
+      kneeL = -Math.max(0, -lp) * amp * 1.3 - 0.05;
+      kneeR = -Math.max(0, -lpO) * amp * 1.3 - 0.05;
+      const aAmp = 0.4 * sn, sway = Math.sin(ctx.time * 1.6) * 0.05 * (1 - sn);
+      shL = lpO * aAmp + sway; shR = lp * aAmp - sway;
+      elL = 0.22 + Math.max(0, lpO) * 0.35; elR = 0.22 + Math.max(0, lp) * 0.35;
+    }
+    R(this.legL.hip, hipL); R(this.legR.hip, hipR);
+    R(this.legL.knee, kneeL); R(this.legR.knee, kneeR);
+    R(this.armL.sh, shL); R(this.armR.sh, shR);
+    R(this.armL.elbow, elL); R(this.armR.elbow, elR);
   }
 
   // 收服概率最高 = 虚弱优先,其次血量最少
@@ -277,7 +342,10 @@ export class Hunter extends Creature {
       this.dashT -= dt;
       this.stun = Math.max(0, this.stun - dt);
       this.elecT = Math.max(0, this.elecT - dt);
-      this.vel.copy(this.dashDir).multiplyScalar(this.dashSpeed);
+      // 湿滑地形(河道/血雨)冲刺略沉、末段更滑
+      const terr = ctx.village?.terrainAt(this.pos);
+      const dashSlip = (terr?.slippery || ctx.rain.slippery) ? 0.88 : 1;
+      this.vel.copy(this.dashDir).multiplyScalar(this.dashSpeed * dashSlip);
       this.pos.addScaledVector(this.vel, dt);
       this.pos.x = clamp(this.pos.x, -110, 110);
       this.pos.z = clamp(this.pos.z, -110, 110);
@@ -320,7 +388,7 @@ export class Hunter extends Creature {
         ctx.three.scene.remove(tc.mesh);
         this.torches.splice(i, 1);
         addFlash(ctx, tc.to.clone().setY(0.5), 3, 0x18e0c8);
-        const src = { owner: this, chain: 0 };
+        const src = { owner: this, chain: 0, fire: true, forceAshore: true };
         for (const p of nearbyProps(ctx, tc.to, 3.0)) {
           if (p.def.flammable) ignite(ctx, p, src);
           damageProp(ctx, p, 12, src);
@@ -329,7 +397,7 @@ export class Hunter extends Creature {
       }
     }
 
-    // ---- 朝向 / 姿态 / 蓄力表现 ----
+    // ---- 朝向 ----
     let face = this.facing;
     if (this.dashT > 0) face = Math.atan2(-this.dashDir.x, -this.dashDir.z);
     else if (input.aim) {
@@ -338,25 +406,18 @@ export class Hunter extends Creature {
     }
     this.facing = face;
     this.figure.rotation.y = damp(this.figure.rotation.y, face, 12, dt);
-    this.figure.position.copy(this.pos);
-    // 蓄力时身体前倾下压,冲撞时前倾
-    const lean = this.dashT > 0 ? -0.35 : (this.charging ? -0.12 - frac * 0.18 : 0);
-    this.figure.rotation.x = damp(this.figure.rotation.x, lean, 10, dt);
-    this.figure.position.y = this.charging ? -frac * 0.15 : Math.abs(Math.sin(ctx.time * 8)) * 0.05 * Math.min(this.vel.length() / SPEED, 1);
+    // 走上拱桥:按桥面剖面抬升(平面移动引擎下,让玩家真的"踏上桥面")
+    const bridgeY = ctx.village?.bridgeHeightAt(this.pos.x, this.pos.z) || 0;
+    this.figure.position.set(this.pos.x, bridgeY, this.pos.z);
+
+    // ---- 人形步态动画 ----
+    this.animate(dt, frac);
 
     // 面甲/符印随蓄力增亮(泛光会放大这个效果)
     const elecFlash = this.elecT > 0 && Math.sin(ctx.time * 30) > 0;
     this.visorMat.emissiveIntensity = 1.2 + frac * 2.2 + (this.dashT > 0 ? 1.5 : 0);
     this.visorMat.emissive.setHex(elecFlash ? 0x4488ff : 0x18e0c8);
     this.sigilMat.emissiveIntensity = 0.8 + frac * 2.5;
-    // 肩灯环绕
-    for (const child of this.root.children) {
-      if (child.userData.float) {
-        const side = child.position.x > 0 ? 1 : -1;
-        const ang = ctx.time * 2.2 * side + (side > 0 ? 0 : Math.PI);
-        child.position.set(this.pos.x + Math.cos(ang) * 0.65, 1.7 + Math.sin(ctx.time * 3 + side) * 0.12, this.pos.z + Math.sin(ang) * 0.65);
-      }
-    }
 
     // 蓄力 UI 环
     ctx.ui.chargeRing(this.charging ? input : null, frac);

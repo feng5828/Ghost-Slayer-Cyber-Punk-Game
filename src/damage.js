@@ -43,15 +43,28 @@ export function destroyProp(ctx, prop, src) {
   if (def.explosive) explode(ctx, pos, 8, 60, nextSrc);
   if (def.powered) spark(ctx, pos, nextSrc);
   if (def.douses) {
-    // 水井炸开:浇灭周围的火
+    // 冷却泵炸开:浇灭周围的火,水汽冲击也会把水鬼逼出水渠
     addFlash(ctx, pos, 8, 0x5a9ad8);
     for (const q of nearbyProps(ctx, pos, 9)) douse(ctx, q);
+    hitCreaturesAt(ctx, pos, 7, 14, { owner, chain: chain + 1, forceAshore: true }, null);
+  }
+  if (def.brazier && prop.state.lit) {
+    // 火盆被撞碎:火种四溅点燃周围
+    addFlash(ctx, pos, 5, 0xff8a30);
+    for (const q of nearbyProps(ctx, pos, 4.5)) {
+      if (q.def.flammable && !q.dead) ignite(ctx, q, nextSrc);
+    }
   }
   if (prop.state.burning) {
     // 燃烧中被摧毁:火种溅到附近可燃物
     for (const q of nearbyProps(ctx, pos, 3.5)) {
       if (q.def.flammable && !q.dead) ignite(ctx, q, { owner: prop.state.burning.owner, chain: prop.state.burning.chain + 1 });
     }
+  }
+
+  // 被鬼火占据的火盆被摧毁 → 逼出藏在其中的鬼火
+  if (prop.state.hauntedBy && prop.state.hauntedBy.alive && prop.state.hauntedBy.releaseBrazier) {
+    prop.state.hauntedBy.releaseBrazier(prop);
   }
 
   cleanupProp(ctx, prop);
@@ -126,23 +139,24 @@ export function hitCreaturesAt(ctx, pos, radius, dmg, src, exclude) {
 // 爆炸:范围伤害 + 冲击波 + 点燃 —— 油罐、导弹化道具共用
 // ============================================================================
 export function explode(ctx, pos, radius, dmg, src) {
+  const blastSrc = { ...src, explosion: true, forceAshore: true };
   ctx.shake = Math.max(ctx.shake, 0.7);
   addFlash(ctx, pos, radius, 0xff8a30);
   for (const p of nearbyProps(ctx, pos, radius)) {
     const pp = propPos(p);
     const d = pp.distanceTo(pos);
     const falloff = 1 - d / (radius + 0.01);
-    damageProp(ctx, p, dmg * falloff, src);
+    damageProp(ctx, p, dmg * falloff, blastSrc);
     if (!p.dead && p.body && !p.fixed) {
       const dir = pp.sub(pos); dir.y = Math.abs(dir.y) + 1.5; dir.normalize();
       const mass = p.body.mass();
       p.body.applyImpulse({ x: dir.x * 30 * falloff * mass, y: dir.y * 22 * falloff * mass, z: dir.z * 30 * falloff * mass }, true);
       p.state.thrownBy = { owner: src.owner, chain: src.chain, t: ctx.time };
     }
-    if (!p.dead && p.def.flammable) ignite(ctx, p, src);
+    if (!p.dead && p.def.flammable) ignite(ctx, p, blastSrc);
   }
-  hitCreaturesAt(ctx, pos, radius * 0.9, dmg * 0.6, src, null);
-  ctx.critters.hitAt(ctx, pos, radius * 0.9, src);
+  hitCreaturesAt(ctx, pos, radius * 0.9, dmg * 0.6, blastSrc, null);
+  ctx.critters.hitAt(ctx, pos, radius * 0.9, blastSrc);
 }
 
 // ============================================================================

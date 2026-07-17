@@ -16,10 +16,20 @@ import { Hunter } from './creatures/hunter.js';
 import { Dragon } from './creatures/dragon.js';
 import { Spheres } from './creatures/spheres.js';
 import { Guardian } from './creatures/guardian.js';
+import { WaterGhost } from './creatures/water.js';
+import { ThunderGhost } from './creatures/thunder.js';
 import { damp, clamp, pick } from './util.js';
 
-const HIDER_KINDS = { dragon: Dragon, spheres: Spheres, guardian: Guardian };
+const HIDER_KINDS = { dragon: Dragon, spheres: Spheres, guardian: Guardian, water: WaterGhost, thunder: ThunderGhost };
 const RESPAWN_DELAY = 4.0;
+
+function residentName(kind) {
+  return ({ dragon: '蜈蚣精', spheres: '鬼火群', guardian: '纸傀儡', water: '水鬼', thunder: '雷鬼' })[kind] || '未知';
+}
+
+function debugSpawnBanner(ui, spawned) {
+  ui.banner(`常驻鬼已入场: ${spawned.map((k) => residentName(k)).join(' / ')}`);
+}
 
 async function boot() {
   await RAPIER.init();
@@ -73,16 +83,17 @@ function startMatch(ui, config) {
   ctx.creatures.push(hunter);
   ctx.camTarget.set(hunter.pos.x, 0, hunter.pos.z);
 
-  // 三只躲藏生物,各刷在远处
+  // 五只常驻鬼,分别出生在各自主场街区
   const ais = [];
   function spawnHider(kind) {
-    const at = ctx.village.farCell(ctx.player.pos.x, ctx.player.pos.z, 4);
+    const at = ctx.village.spawnPointForKind(kind);
     const c = new HIDER_KINDS[kind](ctx, { x: at.x, z: at.z, isPlayer: false });
     ctx.creatures.push(c);
     ais.push(new HiderAI(ctx, c));
     return c;
   }
-  for (const k of ['dragon', 'spheres', 'guardian']) spawnHider(k);
+  const spawnedKinds = ['dragon', 'spheres', 'guardian', 'water', 'thunder'];
+  for (const k of spawnedKinds) spawnHider(k);
 
   const respawnQueue = []; // {at, kind}
 
@@ -91,7 +102,7 @@ function startMatch(ui, config) {
 
   const input = new Input(three.camera);
   ui.startHud(ctx);
-  ui.banner('读懂场景的信号,找出躲藏的生物');
+  debugSpawnBanner(ui, spawnedKinds);
 
   // ---- 主循环 ----
   let last = performance.now();
@@ -119,6 +130,13 @@ function startMatch(ui, config) {
       pin.mouseX = input.mouseX;
       pin.mouseY = input.mouseY;
       if (hunter.alive) hunter.update(dt, pin);
+      // 进入街区提示
+      const zInfo = ctx.village.zoneAt(hunter.pos);
+      if (zInfo.key !== ctx.currentZoneKey) {
+        ctx.currentZoneKey = zInfo.key;
+        if (zInfo.key !== 'plaza') ui.banner(`${zInfo.name} —— 常驻鬼: ${residentName(zInfo.resident)}`);
+        else ui.banner('中央灯笼广场');
+      }
       for (let i = ais.length - 1; i >= 0; i--) {
         const ai = ais[i];
         if (!ai.c.alive) {

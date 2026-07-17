@@ -33,11 +33,14 @@ export class Dragon extends Creature {
     this.headMat = TOON({ color: 0x992010, roughness: 0.45 });
     this.bodyMat = TOON({ color: 0x992010, roughness: 0.5 });
     this.hornMat = TOON({ color: 0xe07310, roughness: 0.4 });
+    this.plateMat = TOON({ color: 0x5a1208, roughness: 0.6 });               // 深色甲片
+    this.eyeMat = TOON({ color: 0x140604, emissive: 0xffd23a, emissiveIntensity: 1.3 });
     this.sphereGeo = new THREE.SphereGeometry(1, 14, 10);
     this.coneGeo = new THREE.ConeGeometry(0.15, 0.6, 8);
+    this.plateGeo = new THREE.BoxGeometry(1.5, 0.5, 1.7);                    // 背甲棱片
 
     for (let i = 0; i < SEG_START; i++) this.addSegment(true);
-    // 头部双触角(原作造型)
+    // 头部:双触角 + 延长触须 + 复眼 + 上颚(赛博蜈蚣头)
     const head = this.segs[0].mesh;
     for (const hx of [-0.5, 0.5]) {
       const horn = new THREE.Mesh(this.coneGeo, this.hornMat);
@@ -45,6 +48,23 @@ export class Dragon extends Creature {
       horn.rotation.z = -hx * 0.35;
       horn.scale.setScalar(1.6);
       head.add(horn);
+      // 触须延长段
+      const tip = new THREE.Mesh(this.coneGeo, this.hornMat);
+      tip.position.set(hx * 1.2, 1.5, -0.1);
+      tip.rotation.z = -hx * 0.8; tip.scale.set(0.5, 1.5, 0.5);
+      head.add(tip);
+    }
+    for (const ex of [-0.42, 0.42]) { // 复眼
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), this.eyeMat);
+      eye.position.set(ex, 0.28, -0.62);
+      head.add(eye);
+    }
+    for (const mx of [-0.3, 0.3]) { // 上颚
+      const mand = new THREE.Mesh(this.coneGeo, this.plateMat);
+      mand.position.set(mx, -0.22, -0.72);
+      mand.rotation.x = -1.9; mand.rotation.z = mx * 0.6;
+      mand.scale.set(0.9, 1.6, 0.9);
+      head.add(mand);
     }
   }
 
@@ -64,6 +84,10 @@ export class Dragon extends Creature {
         leg.scale.set(0.7, 1.4, 0.7);
         mesh.add(leg);
       }
+      // 背甲棱片(深色,压在节背上)
+      const plate = new THREE.Mesh(this.plateGeo, this.plateMat);
+      plate.position.set(0, 0.55, 0);
+      mesh.add(plate);
     }
     this.root.add(mesh);
     const tail = init && i > 0 ? this.segs[i - 1].pos : (this.segs[i - 1]?.pos ?? this.pos);

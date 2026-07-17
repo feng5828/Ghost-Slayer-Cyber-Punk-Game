@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { rand, pick } from './util.js';
 import { damageProp, hitCreaturesAt } from './damage.js';
 import { TOON } from './toon.js';
+import { createFlameSprite } from './fire.js';
 
 // ============================================================================
 // 道具定义:涌现的基础 —— 每个道具只有几个共享属性
@@ -12,19 +13,21 @@ export const PROP_DEFS = {
   hay:     { name: '废料捆',   hp: 30, points: 20, flammable: true, charmable: true, color: 0x4a4438 },
   fence:   { name: '全息广告牌', hp: 20, points: 15, flammable: true, charmable: true, color: 0x23283a },
   pole:    { name: '灯笼灯柱', hp: 60, points: 50, powered: true, conductive: true, color: 0x2a2e3c },
-  tank:    { name: '等离子罐', hp: 35, points: 50, explosive: true, flammable: true, charmable: true, conductive: true, color: 0x323848 },
+  tank:    { name: '等离子罐', hp: 35, points: 50, explosive: true, powered: true, flammable: true, charmable: true, conductive: true, color: 0x323848 },
   rock:    { name: '水泥墩',   hp: 70, points: 25, charmable: true, color: 0x565b66 },
   grass:   { name: '盆栽',     hp: 6,  points: 5,  flammable: true, noBody: true, color: 0x3e7a3a },
   balloon: { name: '巨型灯笼', hp: 400, points: 500, flammable: true, color: 0xc22a1a },
-  hedge:   { name: '青砖巷墙', hp: 25, points: 10, flammable: true, color: 0x8e8578 },
-  house:   { name: '居民楼',   hp: 150, points: 80, flammable: true, color: 0xd8cfc0 },
-  arch:    { name: '牌坊',     hp: 120, points: 60, flammable: true, color: 0x7a2018 },
+  hedge:   { name: '青砖巷墙', hp: 150, points: 10, flammable: true, color: 0x8e8578 },
+  house:   { name: '居民楼',   hp: 480, points: 80, flammable: true, color: 0xd8cfc0 },
+  arch:    { name: '牌坊',     hp: 280, points: 60, flammable: true, color: 0x7a2018 },
   cart:    { name: '悬浮板车', hp: 35, points: 25, flammable: true, charmable: true, color: 0x2c3040 },
   well:    { name: '冷却泵',   hp: 60, points: 30, douses: true, color: 0x2a3444 },
+  brazier: { name: '火盆',     hp: 25, points: 15, brazier: true, color: 0x4a3626 },
 };
 
 // 霓虹配色盘(招牌/灯带随机取)
 const NEON = [0x00e5ff, 0xff2d95, 0xffd75e, 0x7cffb0, 0xff5a3a];
+
 
 let _id = 0;
 const geoCache = {};
@@ -211,9 +214,8 @@ function buildMeshAndBody(ctx, type, x, z, opts = {}) {
     body = fixed(x, 0, z);
     world.createCollider(RAPIER.ColliderDesc.cuboid(w / 2, 1.1, d / 2).setTranslation(0, 1.1, 0), body);
   } else if (type === 'house') {
-    // 中式居民楼:一层木铺面 + 腰檐 + 二层米白墙木格窗 + 灰瓦坡顶
-    // 30% 概率是双重檐"阁楼"变体;墙面垂直叠挂多块霓虹招牌(参考老街)
-    geoCache.houseRoof ||= new THREE.ConeGeometry(5.6, 2.0, 4);
+    // 中式居民楼:一层木铺面 + 腰檐 + 二层米白墙木格窗 + 灰瓦平顶(女儿墙)
+    // 30% 概率是加一层的"阁楼"变体;墙面垂直叠挂多块霓虹招牌(参考老街)
     geoCache.lanternBall ||= new THREE.SphereGeometry(0.42, 12, 10);
     const pavilion = Math.random() < 0.3;
     const wallMat = mat(pick([0xd8cfc0, 0xcfc5b2, 0xe0d8ca]), { roughness: 0.9 });
@@ -262,16 +264,102 @@ function buildMeshAndBody(ctx, type, x, z, opts = {}) {
       group.add(eave2, floor3);
       roofY = 6.2;
     }
-    // 灰瓦坡顶 + 正脊
-    const roof = new THREE.Mesh(geoCache.houseRoof, tileMat);
-    roof.position.y = roofY + 0.9;
-    roof.rotation.y = Math.PI / 4;
-    roof.scale.setScalar(pavilion ? 0.82 : 1);
-    roof.castShadow = true;
-    const ridge = new THREE.Mesh(box, mat(0x3c4048, { roughness: 0.8 }));
-    ridge.scale.set(pavilion ? 3.6 : 4.4, 0.25, 0.4);
-    ridge.position.y = roofY + 1.8;
-    group.add(roof, ridge);
+    // 平顶:灰瓦压顶板 + 四边女儿墙(取消尖屋顶)
+    const rw = pavilion ? 5.0 : 6.4;
+    const roofSlab = new THREE.Mesh(box, tileMat);
+    roofSlab.scale.set(rw, 0.3, rw);
+    roofSlab.position.y = roofY + 0.3;
+    roofSlab.castShadow = true;
+    group.add(roofSlab);
+    const rimMat = mat(0x565a63, { roughness: 0.85 });
+    const rimH = 0.5, rimY = roofY + 0.45 + rimH / 2;
+    for (const [sx, sz, sw, sd] of [
+      [0, rw / 2, rw + 0.2, 0.26], [0, -rw / 2, rw + 0.2, 0.26],
+      [rw / 2, 0, 0.26, rw + 0.2], [-rw / 2, 0, 0.26, rw + 0.2],
+    ]) {
+      const rim = new THREE.Mesh(box, rimMat);
+      rim.scale.set(sw, rimH, sd);
+      rim.position.set(sx, rimY, sz);
+      rim.castShadow = true;
+      group.add(rim);
+    }
+
+    // ---- 生活气息:晾衣杆 / 盆栽 / 水缸 ----
+    const clothCols = [0xe6e2d8, 0xd23a2a, 0x2f6fd0, 0xf0c040, 0x2fae6a, 0xef8fb8, 0xdedede];
+    const poleMat = mat(0x8a7a5a, { roughness: 0.8 });
+    const roofTop = roofY + 0.45;
+
+    // 天台晾衣杆:两立柱 + 横杆 + 一排随风微斜的挂衣
+    {
+      const spanDir = Math.random() < 0.5 ? 'x' : 'z';
+      const span = 3.4, px = rand(-1.0, 1.0), pz = rand(-1.0, 1.0), barY = roofTop + 1.35;
+      for (const e of [-1, 1]) {
+        const post = new THREE.Mesh(box, poleMat);
+        post.scale.set(0.1, 1.4, 0.1);
+        post.position.set(px + (spanDir === 'x' ? e * span / 2 : 0), roofTop + 0.7, pz + (spanDir === 'z' ? e * span / 2 : 0));
+        group.add(post);
+      }
+      const bar = new THREE.Mesh(box, poleMat);
+      bar.scale.set(spanDir === 'x' ? span : 0.06, 0.06, spanDir === 'z' ? span : 0.06);
+      bar.position.set(px, barY, pz);
+      group.add(bar);
+      const n = 3 + Math.floor(rand(3));
+      for (let i = 0; i < n; i++) {
+        const along = ((i + 0.5) / n - 0.5) * span * 0.9;
+        const ch = rand(0.6, 1.0);
+        const cloth = new THREE.Mesh(box, mat(pick(clothCols), { roughness: 0.9 }));
+        cloth.scale.set(0.5, ch, 0.04);
+        cloth.position.set(px + (spanDir === 'x' ? along : 0), barY - ch / 2 - 0.05, pz + (spanDir === 'z' ? along : 0));
+        if (spanDir === 'z') cloth.rotation.y = Math.PI / 2;
+        cloth.rotation.z = rand(-0.08, 0.08);
+        group.add(cloth);
+      }
+    }
+
+    // 窗外挑出的晾衣杆(经典市井):从墙面伸出 + 挂衣
+    for (let k = 0; k < 1 + Math.floor(rand(2)); k++) {
+      const face = pick([0, 1, 2, 3]);
+      const wy = rand(3.0, 4.0), out = 1.7;
+      const horiz = (face === 2 || face === 3) ? 'x' : 'z';
+      let bx = 0, bz = 0;
+      if (face === 0) { bz = 3.05 + out / 2; bx = rand(-2, 2); }
+      else if (face === 1) { bz = -3.05 - out / 2; bx = rand(-2, 2); }
+      else if (face === 2) { bx = 3.05 + out / 2; bz = rand(-2, 2); }
+      else { bx = -3.05 - out / 2; bz = rand(-2, 2); }
+      const pole = new THREE.Mesh(box, poleMat);
+      pole.scale.set(horiz === 'x' ? out : 0.06, 0.06, horiz === 'z' ? out : 0.06);
+      pole.position.set(bx, wy, bz);
+      group.add(pole);
+      const n = 2 + Math.floor(rand(3));
+      for (let i = 0; i < n; i++) {
+        const along = ((i + 0.5) / n - 0.5) * out * 0.8;
+        const ch = rand(0.5, 0.9);
+        const cloth = new THREE.Mesh(box, mat(pick(clothCols), { roughness: 0.9 }));
+        cloth.scale.set(0.4, ch, 0.03);
+        cloth.position.set(bx + (horiz === 'x' ? along : 0), wy - ch / 2 - 0.05, bz + (horiz === 'z' ? along : 0));
+        if (horiz === 'z') cloth.rotation.y = Math.PI / 2;
+        group.add(cloth);
+      }
+    }
+
+    // 天台盆栽
+    geoCache.blade ||= new THREE.ConeGeometry(0.11, 0.9, 5);
+    for (let k = 0; k < 1 + Math.floor(rand(2)); k++) {
+      const gx = rand(-2, 2), gz = rand(-2, 2);
+      const pot = new THREE.Mesh(box, mat(0x9a5636, { roughness: 0.9 }));
+      pot.scale.set(0.4, 0.42, 0.4); pot.position.set(gx, roofTop + 0.21, gz);
+      const leaf = new THREE.Mesh(geoCache.blade, mat(pick([0x3e7a3a, 0x4e8a42]), { roughness: 0.85 }));
+      leaf.position.set(gx, roofTop + 0.7, gz);
+      group.add(pot, leaf);
+    }
+
+    // 水缸(偶尔)
+    if (Math.random() < 0.5) {
+      geoCache.vat ||= new THREE.CylinderGeometry(0.5, 0.42, 0.7, 10);
+      const vat = new THREE.Mesh(geoCache.vat, mat(0x6a5f52, { roughness: 0.8 }));
+      vat.position.set(rand(-2, 2), roofTop + 0.35, rand(-2, 2)); vat.castShadow = true;
+      group.add(vat);
+    }
     // 檐角红灯笼一对
     for (const lx of [-3.2, 3.2]) {
       const lan = new THREE.Mesh(geoCache.lanternBall, neonMat(0xff3a2a, 1.3));
@@ -343,6 +431,27 @@ function buildMeshAndBody(ctx, type, x, z, opts = {}) {
     group.add(deck, glow, tail, lamp);
     body = dyn(x, 1.0, z, 0.3);
     world.createCollider(RAPIER.ColliderDesc.ball(1.0).setDensity(0.6).setFriction(0.7).setRestitution(0.1), body);
+  } else if (type === 'brazier') {
+    // 火盆:庙区常燃的三足铜盆 —— 鬼火群会吞它的火;被撞碎时火种四溅
+    geoCache.brazierBowl ||= new THREE.CylinderGeometry(0.7, 0.45, 0.5, 10);
+    const bowl = new THREE.Mesh(geoCache.brazierBowl, mat(def.color, { metalness: 0.5, roughness: 0.5 }));
+    bowl.position.y = 0.8; bowl.castShadow = true;
+    for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(box, mat(0x2c2018, { metalness: 0.4 }));
+      leg.scale.set(0.1, 0.7, 0.1);
+      const a = (i / 3) * Math.PI * 2;
+      leg.position.set(Math.cos(a) * 0.4, 0.35, Math.sin(a) * 0.4);
+      group.add(leg);
+    }
+    const ember = new THREE.Mesh(box, neonMat(0xff6a20, 1.4));
+    ember.scale.set(0.9, 0.12, 0.9); ember.position.y = 1.05;
+    group.add(bowl, ember);
+    const flame = createFlameSprite(1.6);
+    flame.position.y = 1.6;
+    group.add(flame);
+    group.userData.litFlame = flame;
+    body = fixed(x, 0, z);
+    world.createCollider(RAPIER.ColliderDesc.cylinder(0.55, 0.6).setTranslation(0, 0.55, 0), body);
   } else if (type === 'well') {
     // 冷却泵:泵体 + 发光冷却核心 + 输液管
     geoCache.pumpBody ||= new THREE.CylinderGeometry(1.15, 1.25, 1.2, 10);
@@ -378,6 +487,7 @@ export function createProp(ctx, type, x, z, opts = {}) {
       thrownBy: null,       // {owner, chain, t} 被打飞后成为"弹药"的归因
       charmedBy: null,      // 纸傀儡魅化
       desiredVel: null,     // 魅化时由纸傀儡写入
+      lit: type === 'brazier', // 火盆常燃
     },
   };
   ctx.props.push(prop);
